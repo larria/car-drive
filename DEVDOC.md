@@ -315,19 +315,40 @@ main.js
   id: 'right-angle',
   name: '直角转弯',
   scale: 7,                         // 1px = scale mm，默认 7
+  params: (V) => ({ ... }),         // 可选，动态参数：基于当前车辆 V 计算 vars（见下）
   viewport: {
-    bbox: { minX, maxX, minY, maxY }, // mm；省略则从元素自动推导
+    bbox: { minX, maxX, minY, maxY }, // mm；省略则从元素自动推导；支持 ${expr} 占位符
     maxScale: 0.7,                    // 自适应视口缩放上限
   },
-  carInit: { x, y, heading },        // 车辆初始位置 mm / °
+  carInit: { x, y, heading },        // 车辆初始位置 mm / °；支持 ${expr} 占位符
   rules: {                           // 可选，操作约束（见下）
     noReverse: true,                 // 不允许倒车（speed<0 即失败）
     noStopAfterGo: true,             // 按 W 起步后不允许松开/停车
   },
   obstacleMode: false,               // true 启用运行时障碍物放置（仅自由场景）
-  elements: [ /* 几何元素 */ ],
+  elements: [ /* 几何元素，字段值支持 ${expr} 占位符 */ ],
 }
 ```
+
+### 动态参数（params）与占位符
+
+场景几何可依赖当前车辆参数（如直角转弯车道宽 = 轴距 + 1m）。
+
+- **`params(V) => vars`**：可选函数，接收当前车辆对象 `V`（mm），返回变量表。`loadSceneData` 加载时调用一次。
+- **`${expr}` 占位符**：`elements`、`viewport.bbox`、`carInit` 的字符串字段值可用 `${expr}` 引用 vars 中的变量，加载时求值为数值。整串为单个 `${expr}` 时返回数值，否则做模板拼接。
+- `expr` 以 vars 为作用域求值（如 `${RW/2}`、`${L2 + RW/2}`），vars 中未声明的变量不可用。
+
+示例（场景0 直角转弯）：
+```js
+params: (V) => ({ RW: V.wheelbase + 1000, L1: 12000, L2: 10000 }),
+elements: [
+  { type: 'wall', x1: '${-RW/2}', y1: '${-RW}', x2: '${-RW/2}', y2: '${L1}', ... },
+  ...
+],
+viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
+```
+
+切换车辆后重新 `loadScene` 即自动重算几何。`getSceneVars()` 可查询当前变量表（调试）。
 
 ### 操作规则（rules）
 
@@ -386,7 +407,7 @@ main.js
 
 | 序号 | id | 名称 | 几何方式 | 规则 |
 |---|---|---|---|---|
-| 0 | `right-angle` | 直角转弯 | 纯数据，出口为 `finish` 终点线 | noReverse + noStopAfterGo |
+| 0 | `right-angle` | 直角转弯 | 动态参数（车道宽=轴距+1m）+ `finish` 终点线 | noReverse + noStopAfterGo |
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
 | 2 | `parallel-parking` | 侧方位停车 | 纯数据，参考车为 `lane`（仅视觉） | noReverse + noStopAfterGo |
 | 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
@@ -426,15 +447,19 @@ main.js
 
 ### 加载流程（`loadSceneData(sceneConfig)`）
 
-1. **展开元素** `resolveElements()`：递归处理 `generator`（调用对应生成函数，把返回的 elements 平铺），得到扁平 elements 数组（mm）。
-2. **转 px** `toPx()`：每个元素按 type 把 mm 坐标除以 `scale` 转 px。
-3. **提取碰撞元素**：遍历 px 元素，分类收入 `_collision`：
+1. **计算动态参数**：若 `sceneConfig.params` 存在，调用 `params(getVehicle())` 得到 vars（基于当前车辆，mm）。
+2. **占位符替换** `substitute()`：对 `elements`/`viewport.bbox`/`carInit` 的字符串字段做 `${expr}` → 数值替换（以 vars 求值）。
+3. **展开元素** `resolveElements()`：递归处理 `generator`（调用对应生成函数，把返回的 elements 平铺），得到扁平 elements 数组（mm）。
+4. **转 px** `toPx()`：每个元素按 type 把 mm 坐标除以 `scale` 转 px。
+5. **提取碰撞元素**：遍历 px 元素，分类收入 `_collision`：
    - `wall` → `walls`（线段 + collisionReason）
    - `rectObstacle` → `rects`
    - `circleObstacle` → `circles`
    - `finish` → `finishes`（线段 + reason）
-4. **缓存 rules**：`_rules = sceneConfig.rules || {}`（供 `getSceneRules`）。
-5. **计算 bbox** `computeBBoxPx()`：优先用 `viewport.bbox`，否则从所有元素点集推导（含 1000mm padding）。
+6. **缓存 rules / carInit**：`_rules`、`_carInitPx`（已替换并转 px）。
+7. **计算 bbox** `computeBBoxPx()`：优先用替换后的 `viewport.bbox`，否则从所有元素点集推导（含 1000mm padding）。
+
+> `sceneInitPos`/`sceneViewport` 读 `_carInitPx`/`_bboxPx` 缓存（已含动态参数），不再直接读 sceneConfig。
 
 ### 对外查询
 
@@ -443,6 +468,7 @@ main.js
 | `getRenderElements()` | px 元素数组 | 供 `scene-render` 遍历绘制 |
 | `getCollisionElements()` | `{walls, rects, circles, finishes}` | 供 `checkCollision`（均 px） |
 | `getSceneRules()` | `{noReverse?, noStopAfterGo?}` | 当前场景操作规则，供 `checkRules` |
+| `getSceneVars()` | `{RW?, ...}` | 当前场景动态参数变量表（调试） |
 | `getBBoxPx()` | `{minX,maxX,minY,maxY}` | 包围盒 px |
 | `sceneViewport(cfg)` | `{vs, vpOffX, vpOffY}` | 自适应视口参数 |
 | `sceneInitPos(cfg)` | `{x,y,heading}` | 车辆初始位置（mm→px） |
@@ -839,6 +865,10 @@ ctx.setTransform(DPR, 0, 0, DPR, 0, 0);  // 绘制坐标系仍用 CSS px
 
 任意场景在配置里加 `rules: { noReverse: true, noStopAfterGo: true }` 即可启用操作约束。新增规则类型需在 `core/rules.js: checkRules()` 加判断分支（违规调 `triggerCollision`）。
 
+### 动态参数（场景几何依赖车辆）
+
+任意场景加 `params: (V) => ({ 变量名: 基于V的表达式 })`，元素/bbox/carInit 的字符串字段用 `${expr}` 引用变量，即可让几何随当前车辆自动调整（如车道宽 = 轴距 + 1m）。无需改代码，切换车辆后重新 `loadScene` 自动重算。
+
 ---
 
 ## 18. 数据验证与调试
@@ -859,6 +889,7 @@ v.getCurrentVehicle().tireDia        // 738（岚图知音）
 sl.getCollisionElements()            // {walls, rects, circles, finishes}
 sl.getCollisionElements().walls.length
 sl.getSceneRules()                   // {noReverse, noStopAfterGo} 或 {}
+sl.getSceneVars()                    // 动态参数变量表，如 {RW, L1, L2}
 
 // 当前状态
 store.car                            // 车辆运行状态
@@ -899,6 +930,7 @@ store.scene.startedW                 // 是否已按 W 起步
 | `loadSceneData()` | core/scene-loader.js | 场景数据加载 |
 | `getCollisionElements()` | core/scene-loader.js | 碰撞元素（walls/rects/circles/finishes） |
 | `getSceneRules()` | core/scene-loader.js | 操作规则（noReverse/noStopAfterGo） |
+| `getSceneVars()` | core/scene-loader.js | 动态参数变量表（调试） |
 | `getRenderElements()` | core/scene-loader.js | 绘制元素 |
 | `sceneViewport()` | core/scene-loader.js | 视口自适应 |
 | `loadSceneById/loadSceneByIndex` | core/scene-runtime.js | 切换场景 |

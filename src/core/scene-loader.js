@@ -7,7 +7,7 @@
 // 生成器返回 elements 数组（mm 坐标），再统一走展开/转换流程。
 
 import { VIEWPORT } from '../config/physics.js';
-import { viewport } from '../state/store.js';
+import { viewport, getVehicle } from '../state/store.js';
 
 // ── 生成器注册表 ──
 const GENERATORS = {
@@ -175,24 +175,71 @@ export function resolveElements(sceneConfig) {
   return out;
 }
 
+// 动态参数：场景可声明 params(V) => vars，基于当前车辆参数计算变量（mm）。
+// 元素的字符串字段可用 ${expr} 引用变量（如 '${RW}/2'），加载时求值替换为数值。
+// 这使场景几何能依赖车辆参数（如直角转弯车道宽 = 轴距 + 1m）。
+const EXPR_RE = /\$\{([^}]+)\}/g;
+
+function evalExpr(expr, vars) {
+  try {
+    const fn = new Function(...Object.keys(vars), `"use strict"; return (${expr});`);
+    return fn(...Object.values(vars));
+  } catch (e) {
+    console.warn(`场景参数表达式求值失败：${expr}`, e);
+    return 0;
+  }
+}
+
+function substitute(value, vars) {
+  if (typeof value === 'string') {
+    if (!value.includes('${')) return value;
+    // 整串是单个表达式 → 返回数值；否则做模板替换返回字符串
+    const m = value.match(/^\$\{([^}]+)\}$/);
+    if (m) return evalExpr(m[1], vars);
+    return value.replace(EXPR_RE, (_, expr) => evalExpr(expr, vars));
+  }
+  if (Array.isArray(value)) return value.map((v) => substitute(v, vars));
+  if (value && typeof value === 'object') {
+    const o = {};
+    for (const k of Object.keys(value)) o[k] = substitute(value[k], vars);
+    return o;
+  }
+  return value;
+}
+
 // 缓存：当前场景展开后的元素（px）与碰撞元素。loadScene 时刷新。
 let _resolvedPx = []; // 展开后的元素，mm 已转 px
 let _collision = { walls: [], rects: [], circles: [], finishes: [] };
 let _bboxPx = null;
+let _carInitPx = { x: 0, y: 0, heading: 0 }; // 车辆初始位置（px），含动态参数替换
 let _rules = {}; // 场景操作规则（noReverse / noStopAfterGo 等）
+let _vars = {}; // 当前场景动态参数变量表（调试用）
 
 function mm2px(sceneConfig, v) {
   return v / (sceneConfig.scale || 7);
 }
 
-// 加载场景：展开元素、转 px、提取碰撞元素、计算 bbox
+// 加载场景：计算动态参数 → 替换占位符 → 展开 generator → 转 px → 提取碰撞元素 → 算 bbox
 export function loadSceneData(sceneConfig) {
   const s = sceneConfig.scale || 7;
   _rules = sceneConfig.rules || {};
-  const resolved = resolveElements(sceneConfig);
+
+  // 动态参数：基于当前车辆参数计算变量表
+  _vars = typeof sceneConfig.params === 'function' ? sceneConfig.params(getVehicle()) || {} : {};
+
+  // 替换 elements / viewport.bbox / carInit 中的 ${expr} 占位符
+  const elements = substitute(sceneConfig.elements, _vars);
+  const bboxMm = substitute(sceneConfig.viewport?.bbox, _vars);
+  const carInitMm = substitute(sceneConfig.carInit, _vars);
+
+  const resolved = resolveElements({ ...sceneConfig, elements });
 
   // 转 px
   _resolvedPx = resolved.map((el) => toPx(el, s));
+
+  // 车辆初始位置（px）
+  const ci = carInitMm || { x: 0, y: 0, heading: 0 };
+  _carInitPx = { x: ci.x / s, y: ci.y / s, heading: ci.heading };
 
   // 提取碰撞元素 + 终点线
   const walls = [];
@@ -212,8 +259,8 @@ export function loadSceneData(sceneConfig) {
   }
   _collision = { walls, rects, circles, finishes };
 
-  // bbox
-  _bboxPx = computeBBoxPx(sceneConfig, _resolvedPx, s);
+  // bbox（用替换后的 bboxMm）
+  _bboxPx = computeBBoxPx(bboxMm, _resolvedPx, s);
 }
 
 // 元素 mm → px
@@ -237,9 +284,8 @@ function toPx(el, s) {
   }
 }
 
-// 计算 bbox（px）：优先用配置，否则从元素推导
-function computeBBoxPx(sceneConfig, resolvedPx, s) {
-  const bboxMm = sceneConfig.viewport?.bbox;
+// 计算 bbox（px）：优先用配置（已替换占位符），否则从元素推导
+function computeBBoxPx(bboxMm, resolvedPx, s) {
   if (bboxMm) {
     return {
       minX: bboxMm.minX / s,
@@ -293,6 +339,11 @@ export function getSceneRules() {
   return _rules;
 }
 
+// 当前场景动态参数变量表（调试用）
+export function getSceneVars() {
+  return _vars;
+}
+
 // 当前场景 bbox（px）
 export function getBBoxPx() {
   return _bboxPx;
@@ -320,9 +371,7 @@ export function sceneViewport(sceneConfig) {
   };
 }
 
-// 场景车辆初始位置（px）。carInit 是 mm，转 px。
+// 场景车辆初始位置（px）。读 loadSceneData 缓存（已含动态参数替换）。
 export function sceneInitPos(sceneConfig) {
-  const s = sceneConfig.scale || 7;
-  const ci = sceneConfig.carInit || { x: 0, y: 0, heading: 0 };
-  return { x: ci.x / s, y: ci.y / s, heading: ci.heading };
+  return _carInitPx;
 }
