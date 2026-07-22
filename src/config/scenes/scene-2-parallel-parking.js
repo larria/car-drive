@@ -11,18 +11,20 @@ export const scene2 = {
   id: 'parallel-parking',
   name: '侧方位停车',
   scale: 7,
-  // 动态参数：库长/库宽/车道宽均依赖当前车辆
+  // 动态参数：库长/库宽/车道宽均依赖当前车辆；起点/通过线位置基于 L 自适应
   params: (V) => ({
     L: V.length * 1.5 + 1000, // 库长
     B1: V.width + 800, // 库宽
     B2: V.width * 1.5 + 800, // 车道宽
     ROAD_L,
+    START_Y: (V.length * 1.5 + 1000) / 2 + 3000, // 起点线 = 库位后端(L/2) + 3000mm
+    FINISH_Y: -(V.length * 1.5 + 1000) / 2 - 6000, // 通过线 = 库位前端(-L/2) - 6000mm
   }),
   viewport: {
-    bbox: { minX: '${-B2/2 - 1000}', maxX: '${B2/2 + B1 + 1000}', minY: '${-ROAD_L/2 - 1000}', maxY: '${ROAD_L/2 + 1000}' },
+    bbox: { minX: '${-B2/2 - 1000}', maxX: '${B2/2 + B1 + 1000}', minY: '${FINISH_Y - 2000}', maxY: '${START_Y + 2000}' },
     maxScale: 0.7,
   },
-  carInit: { x: 0, y: '${ROAD_L/2 - 2000}', heading: 0 }, // 车道下端，朝上
+  carInit: { x: 0, y: '${START_Y + 500}', heading: 0 }, // 起点线略后方，朝上
   // 侧方流程需倒车与入库停车，不适用 noReverse/noStopAfterGo
   elements: [
     // 车道路面（行车道）
@@ -57,12 +59,12 @@ export const scene2 = {
     { type: 'line', x1: '${B2/2}', y1: '${-L/2}', x2: '${B2/2}', y2: '${L/2}', stroke: 'rgba(255,220,50,0.5)', width: 1, dashed: true },
     // 停车区（parkZone）：库位中心，要求车头朝上(heading=0)，容差 15°
     { type: 'parkZone', x: '${B2/2 + B1/2}', y: 0, w: '${B1}', h: '${L}', heading: 0, headingTol: 15 },
-    // 出口终点线（绿线）：库位前方，驶过即通过；要求先完成入库停车
-    { type: 'finish', x1: '${-B2/2}', y1: '${-L/2 - 3000}', x2: '${B2/2}', y2: '${-L/2 - 3000}', stroke: 'rgba(60,230,120,0.9)', width: 1.6, reason: '车辆顺利通过侧方位停车', requireParked: true, notParkedReason: '未完成侧方入库，考试不合格' },
-    // 起点线
-    { type: 'line', x1: '${-B2/2}', y1: '${ROAD_L/2 - 1000}', x2: '${B2/2}', y2: '${ROAD_L/2 - 1000}', stroke: 'rgba(50,220,100,0.7)', width: 1 },
-    { type: 'label', x: 0, y: '${ROAD_L/2 - 500}', text: '▼ 起点线', color: 'rgba(50,220,100,0.8)', fontSize: 11 },
+    // 出口终点线（绿线）：库位前方 6000mm，驶过即通过；要求先完成入库停车
+    { type: 'finish', x1: '${-B2/2}', y1: '${FINISH_Y}', x2: '${B2/2}', y2: '${FINISH_Y}', stroke: 'rgba(60,230,120,0.9)', width: 1.6, reason: '车辆顺利通过侧方位停车', requireParked: true, notParkedReason: '未完成侧方入库，考试不合格' },
+    // 起点线（库位后方 3000mm）
+    { type: 'line', x1: '${-B2/2}', y1: '${START_Y}', x2: '${B2/2}', y2: '${START_Y}', stroke: 'rgba(50,220,100,0.7)', width: 1 },
+    { type: 'label', x: 0, y: '${START_Y + 500}', text: '▼ 起点线', color: 'rgba(50,220,100,0.8)', fontSize: 11 },
     { type: 'label', x: '${B2/2 + B1/2}', y: '${L/2 + 1200}', text: '侧方车位', color: 'rgba(255,255,255,0.5)', fontSize: 14 },
-    { type: 'label', x: 0, y: '${-L/2 - 4000}', text: '通过线 →', color: 'rgba(60,230,120,0.7)', fontSize: 12 },
+    { type: 'label', x: 0, y: '${FINISH_Y - 800}', text: '通过线 →', color: 'rgba(60,230,120,0.7)', fontSize: 12 },
   ],
 };
