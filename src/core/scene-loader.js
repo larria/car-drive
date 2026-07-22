@@ -214,6 +214,7 @@ let _bboxPx = null;
 let _carInitPx = { x: 0, y: 0, heading: 0 }; // 车辆初始位置（px），含动态参数替换
 let _rules = {}; // 场景操作规则（noReverse / noStopAfterGo 等）
 let _vars = {}; // 当前场景动态参数变量表（调试用）
+let _timers = []; // 场景计时器配置
 
 function mm2px(sceneConfig, v) {
   return v / (sceneConfig.scale || 7);
@@ -223,6 +224,7 @@ function mm2px(sceneConfig, v) {
 export function loadSceneData(sceneConfig) {
   const s = sceneConfig.scale || 7;
   _rules = sceneConfig.rules || {};
+  _timers = Array.isArray(sceneConfig.timers) ? sceneConfig.timers : [];
 
   // 动态参数：基于当前车辆参数计算变量表
   _vars = typeof sceneConfig.params === 'function' ? sceneConfig.params(getVehicle()) || {} : {};
@@ -355,6 +357,11 @@ export function getSceneRules() {
 // 当前场景动态参数变量表（调试用）
 export function getSceneVars() {
   return _vars;
+}
+
+// 当前场景计时器配置
+export function getSceneTimers() {
+  return _timers;
 }
 
 // 当前场景 bbox（px）

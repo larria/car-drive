@@ -19,7 +19,7 @@ import { getCollisionElements } from './scene-loader.js';
 import { showFailOverlay, showPassOverlay, hideFailOverlay } from '../ui/overlay.js';
 
 // 车身四角是否全部在矩形内（x,y 为矩形中心，w/h 尺寸，px）
-function carInRect(corners, rx, ry, rw, rh) {
+export function carInRect(corners, rx, ry, rw, rh) {
   const minX = rx - rw / 2;
   const maxX = rx + rw / 2;
   const minY = ry - rh / 2;

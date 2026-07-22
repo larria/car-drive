@@ -44,6 +44,7 @@ export const scene = {
   obstacleMode: false,
   placingObstacle: null, // 正在拖拽放置的障碍物
   startedW: false, // 是否已按 W 起步（用于 noStopAfterGo 规则）
+  timers: {}, // 计时器运行时状态 { [id]: { elapsed, active } }，由 core/timers 维护
 };
 
 // 车辆放置交互状态
@@ -123,9 +124,18 @@ export function clearParked() {
   scene.parked = false;
 }
 
+// 计时器状态
+export function resetTimers() {
+  scene.timers = {};
+}
+export function getTimerState(id) {
+  return scene.timers[id] || null;
+}
+
 // 场景重置时一并清空碰撞与通过状态
 export function clearOutcome() {
   clearCollision();
   clearPassed();
   clearParked();
+  resetTimers();
 }

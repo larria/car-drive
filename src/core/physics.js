@@ -11,8 +11,9 @@ import { car, trail, input, scene, getVehicle } from '../state/store.js';
 import { axleOffsets, bodyCorners, outerCorners, wheelPositions } from './geometry.js';
 import { checkCollision } from './collision.js';
 import { checkRules } from './rules.js';
+import { checkTimers } from './timers.js';
 
-export function update() {
+export function update(dt = 16) {
   const V = getVehicle();
   const K = input.keys;
   const moving = K['w'] || K['s'];
@@ -94,6 +95,9 @@ export function update() {
 
   // 操作规则检查（违规优先于碰撞/通过检测）
   if (!scene.collision.hit && !scene.passed.done) checkRules();
+
+  // 计时器检查（超时失败）
+  if (!scene.collision.hit && !scene.passed.done) checkTimers(dt);
 
   // 碰撞 / 通过检测（已有结果后不再检测）
   if (!scene.collision.hit && !scene.passed.done) checkCollision();

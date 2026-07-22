@@ -11,11 +11,15 @@ import { drawCar, drawPlacePreview } from './car-render.js';
 import { drawFailOverlay } from './fail-overlay.js';
 import { drawRuler } from './ruler.js';
 import { updateHUD } from '../ui/hud.js';
+import { updateTimerBars } from '../ui/timer-bars.js';
 
 let _raf = null;
+let _lastTs = 0;
 
-export function frame() {
-  update();
+export function frame(ts) {
+  const dt = _lastTs ? Math.min(100, ts - _lastTs) : 16; // 限制单帧 dt 上限，避免切后台后跳跃
+  _lastTs = ts;
+  update(dt);
   const ctx = viewport.ctx;
   if (ctx) {
     ctx.clearRect(0, 0, viewport.CW, viewport.CH);
@@ -30,6 +34,7 @@ export function frame() {
     drawRuler();
   }
   updateHUD();
+  updateTimerBars();
   _raf = requestAnimationFrame(frame);
 }
 

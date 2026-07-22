@@ -109,6 +109,24 @@ body{display:flex;flex-direction:column;font-family:'Segoe UI',Helvetica,sans-se
 #pass-msg .pass-reason{font-size:14px;color:#90e0a0;margin-bottom:14px;}
 #pass-msg .pass-hint{font-size:12px;color:#888;}
 
+/* ── 计时器进度条 ── */
+#timer-bars{
+  position:fixed;top:96px;left:14px;display:flex;flex-direction:column;gap:6px;
+  z-index:200;pointer-events:none;
+}
+#timer-bars .tbar{
+  display:none;min-width:170px;
+  background:rgba(6,12,24,0.82);border:1px solid rgba(79,195,247,0.3);
+  border-radius:6px;padding:4px 8px;
+}
+#timer-bars .tbar.show{display:block;}
+#timer-bars .tbar-label{font-size:10px;color:#9ab;letter-spacing:.4px;margin-bottom:3px;display:flex;justify-content:space-between;}
+#timer-bars .tbar-track{height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;}
+#timer-bars .tbar-fill{height:100%;width:0%;border-radius:3px;transition:width .1s linear;}
+#timer-bars .tbar.warn .tbar-fill{background:#ff9800;}
+#timer-bars .tbar.danger .tbar-fill{background:#ff4d4d;}
+#timer-bars .tbar:not(.warn):not(.danger) .tbar-fill{background:#4fc3f7;}
+
 /* ── 障碍物模式提示 ── */
 #obstacle-hint{
   display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);

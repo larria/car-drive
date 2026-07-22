@@ -1,29 +1,29 @@
-// 极氪7X 车辆配置示例（参数为示意值，可按官方数据修正）
+// 极氪7X 车辆配置（基于2026款官方参数修正）
 // 演示「方便新增车辆」：仅需新增此文件并在 vehicles/index.js 注册。
 
 export const zeekr7x = {
   id: 'zeekr-7x',
   name: '极氪 7X',
   brand: '极氪',
-  year: 2025,
+  year: 2026,
   dimensions: {
-    length: 4660, // 车身全长
-    width: 1915, // 车身宽度（不含后视镜）
-    wheelbase: 2825, // 轴距
-    frontOverhang: 920, // 前悬（长度 = 前悬+轴距+后悬 校验）
-    rearOverhang: 915, // 后悬 = 4660-2825-920 = 915
-    trackFront: 1620,
-    trackRear: 1635,
+    length: 4825,       // 车身全长（官方数据）
+    width: 1930,        // 车身宽度（不含后视镜，官方数据）
+    wheelbase: 2925,    // 轴距（官方数据）
+    frontOverhang: 863, // 前悬 = 4825 - 2925 - 1037 = 863
+    rearOverhang: 1037, // 后悬
+    trackFront: 1649,   // 前轮距（官方数据）
+    trackRear: 1654,    // 后轮距（官方数据）
   },
   tires: {
-    tireWidth: 255, // 255/50 R19 示意
-    rimDia: 482.6, // 19" = 482.6mm
-    sidewall: 127.5, // 255*0.50 ≈ 127.5
+    tireWidth: 255,     // 255/50 R19 全系标配
+    rimDia: 482.6,      // 19" = 482.6mm
+    sidewall: 127.5,    // 255 * 0.50 = 127.5mm
   },
   mirrors: {
-    reach: 145,
-    fwdOffset: 440,
-    length: 180,
+    reach: 145,         // 后视镜外伸量（示意值）
+    fwdOffset: 440,     // 后视镜前移量（示意值）
+    length: 180,        // 后视镜长度（示意值）
   },
   physics: {
     maxSteer: 36,
@@ -34,9 +34,9 @@ export const zeekr7x = {
     maxSpeed: 5.5,
   },
   rearSteer: {
-    supported: true, // 极氪7X 支持后轮转向
-    maxAngle: 8,
-    defaultEnabled: true, // 演示：默认打开后轮转向
+    supported: false,   // 极氪7X 全系不支持后轮转向
+    maxAngle: 0,
+    defaultEnabled: false,
   },
   appearance: {
     bodyColorTop: '#1a1a2e',

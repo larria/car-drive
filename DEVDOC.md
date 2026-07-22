@@ -85,6 +85,7 @@ car-drive/
     │   ├── physics.js      # update()：转向/速度/阿克曼运动学/轨迹/规则检查/碰撞触发
     │   ├── collision.js    # segIntersect/circlePolyIntersect/checkCollision/triggerCollision/triggerPass
     │   ├── rules.js        # checkRules()：操作规则检查（noReverse/noStopAfterGo）
+    │   ├── timers.js       # checkTimers()：通用计时器（totalCountdown/stopAccum）
     │   ├── scene-loader.js # 解析场景 JSON：展开 generator/转 px/提取碰撞元素/规则/算 bbox/视口
     │   └── scene-runtime.js# loadSceneById/loadSceneByIndex/resetScene（切换总入口）
     ├── input/
@@ -105,7 +106,8 @@ car-drive/
         ├── hud.js          # updateHUD（顶部数值 + 底部徽章）
         ├── scene-tabs.js   # 选项卡动态生成 + 高亮
         ├── resize.js       # Canvas 尺寸 + DPR + ctx 绑定
-        └── overlay.js      # 失败/通过遮罩 + 障碍物提示 DOM 控制
+        ├── overlay.js      # 失败/通过遮罩 + 障碍物提示 DOM 控制
+        └── timer-bars.js   # 计时器进度条 UI
 ```
 
 ### HTML / CSS 拆分
@@ -325,6 +327,10 @@ main.js
     noReverse: true,                 // 不允许倒车（speed<0 即失败）
     noStopAfterGo: true,             // 按 W 起步后不允许松开/停车
   },
+  timers: [                          // 可选，计时器（见下，可复用）
+    { id:'total', type:'totalCountdown', limit:30000, label:'总用时', reason:'超时' },
+    { id:'stop', type:'stopAccum', limit:2000, exceptInZone:true, label:'中途停车', reason:'停车超时' },
+  ],
   obstacleMode: false,               // true 启用运行时障碍物放置（仅自由场景）
   elements: [ /* 几何元素，字段值支持 ${expr} 占位符 */ ],
 }
@@ -360,6 +366,21 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `noStopAfterGo` | 按 W 起步后不允许松开/停车，W 松开且速度归零即判失败（"中途停车，考试不合格"） |
 
 `noStopAfterGo` 依赖 `scene.startedW` 标志（按 W 置 true），在 `loadScene` 与鼠标放置车辆时重置为 false。未声明 `rules` 的场景（如自由练习）不受约束。
+
+### 计时器（timers）
+
+场景可声明计时器，由 `core/timers.js: checkTimers(dt)` 每帧在 `update` 中检查（超时走 `triggerCollision` 失败）。计时器在 `scene.startedW`（按 W 起步）后开始计时，`loadScene` 时 `resetTimers` 清空。可复用于任意场景。
+
+| 字段 | 说明 |
+|---|---|
+| `id` | 唯一标识，对应 `scene.timers[id]` 运行时状态 |
+| `type` | `totalCountdown`：启动后持续累计；`stopAccum`：仅停车时累计 |
+| `limit` | 上限 ms，超限触发失败 |
+| `reason` | 超限失败原因 |
+| `label` | 进度条显示名（可选） |
+| `exceptInZone` | 仅 `stopAccum`：车辆完全在 parkZone 内的停车不计入（用于"入库停车允许"） |
+
+运行时状态 `scene.timers[id] = { elapsed }`，UI 进度条（`ui/timer-bars.js`）按 `elapsed/limit` 渲染，70% 转 warn、90% 转 danger。
 
 ### 元素类型
 
@@ -414,7 +435,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 |---|---|---|---|---|
 | 0 | `right-angle` | 直角转弯 | 动态参数（车道宽=轴距+1m）+ `finish` 终点线 | noReverse + noStopAfterGo |
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
-| 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked） | 无（流程需倒车+停车） |
+| 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | 无；timers：30s 总时 + 2s 中途停车（库内除外） |
 | 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
 | 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` | 无 |
 
@@ -462,7 +483,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
    - `circleObstacle` → `circles`
    - `finish` → `finishes`（线段 + reason + requireParked）
    - `parkZone` → `parkZones`（矩形 + heading + headingTol）
-6. **缓存 rules / carInit**：`_rules`、`_carInitPx`（已替换并转 px）。
+6. **缓存 rules / timers / carInit**：`_rules`、`_timers`、`_carInitPx`（已替换并转 px）。
 7. **计算 bbox** `computeBBoxPx()`：优先用替换后的 `viewport.bbox`，否则从所有元素点集推导（含 1000mm padding）。
 
 > `sceneInitPos`/`sceneViewport` 读 `_carInitPx`/`_bboxPx` 缓存（已含动态参数），不再直接读 sceneConfig。
@@ -474,6 +495,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `getRenderElements()` | px 元素数组 | 供 `scene-render` 遍历绘制 |
 | `getCollisionElements()` | `{walls, rects, circles, finishes, parkZones}` | 供 `checkCollision`（均 px） |
 | `getSceneRules()` | `{noReverse?, noStopAfterGo?}` | 当前场景操作规则，供 `checkRules` |
+| `getSceneTimers()` | `[{id,type,limit,...}]` | 当前场景计时器配置，供 `checkTimers` |
 | `getSceneVars()` | `{RW?, ...}` | 当前场景动态参数变量表（调试） |
 | `getBBoxPx()` | `{minX,maxX,minY,maxY}` | 包围盒 px |
 | `sceneViewport(cfg)` | `{vs, vpOffX, vpOffY}` | 自适应视口参数 |
@@ -511,6 +533,7 @@ update()
  │    └── 转弯：后轴绕圆心旋转，反推车辆中心
  ├── 记录轨迹（每 2 帧一次）
  ├── checkRules()（操作规则违规优先，已有结果后跳过）
+ ├── checkTimers(dt)（计时器超时失败，已有结果后跳过）
  └── checkCollision()（已有碰撞/通过结果后跳过）
 ```
 
@@ -746,6 +769,13 @@ W/S/A/D 通过 `input.keys` 状态数组持续读取，每帧 `update()` 处理�
 - `#b-lock`：前轮状态（自由/锁定+角度）
 - `#b-rlock`：后轮转向状态（不支持/关闭/转向中+角度/锁定+角度）
 
+### 计时器进度条（`ui/timer-bars.js: updateTimerBars`）
+
+`#timer-bars`（左上角）根据场景 `timers` 配置动态生成条目，每帧更新进度：
+- 进度 = `elapsed / limit`；70% 转 warn（橙）、90% 转 danger（红）
+- `totalCountdown` 显示剩余时间；`stopAccum` 显示累计/上限
+- 仅在 `startedW && !hit && !passed` 时显示；无 timers 的场景隐藏
+
 ### 场景选项卡（`ui/scene-tabs.js`）
 
 `buildSceneTabs()` 从 `listScenes()` 动态生成 `#scene-tabs` 内的 `.stab` 按钮（带序号 + 名称），点击调 `loadSceneById`；`updateSceneTabsActive(id)` 高亮当前。
@@ -889,6 +919,10 @@ ctx.setTransform(DPR, 0, 0, DPR, 0, 0);  // 绘制坐标系仍用 CSS px
 
 任意场景加 `params: (V) => ({ 变量名: 基于V的表达式 })`，元素/bbox/carInit 的字符串字段用 `${expr}` 引用变量，即可让几何随当前车辆自动调整（如车道宽 = 轴距 + 1m）。无需改代码，切换车辆后重新 `loadScene` 自动重算。
 
+### 计时器
+
+任意场景加 `timers: [{ id, type, limit, reason, ... }]` 即可启用计时（可复用）。`totalCountdown` 启动后倒计时，`stopAccum` 累计停车时长（`exceptInZone` 时库内停车不计）。进度条 UI 自动渲染。新增计时器类型需在 `core/timers.js: checkTimers` 加分支。
+
 ---
 
 ## 18. 数据验证与调试
@@ -945,6 +979,7 @@ store.scene.startedW                 // 是否已按 W 起步
 | `w2s / s2w / rot` | core/geometry.js | 坐标变换 |
 | `update()` | core/physics.js | 物理+轨迹+规则检查+碰撞触发 |
 | `checkRules()` | core/rules.js | 操作规则检查（noReverse/noStopAfterGo） |
+| `checkTimers(dt)` | core/timers.js | 计时器检查（totalCountdown/stopAccum） |
 | `checkCollision()` | core/collision.js | 碰撞+通过+停车区检测 |
 | `triggerCollision/triggerPass` | core/collision.js | 触发失败/通过（triggerCollision 供 rules 复用） |
 | `carInRect/headingMatch` | core/collision.js | 停车区检测辅助 |
@@ -952,6 +987,8 @@ store.scene.startedW                 // 是否已按 W 起步
 | `loadSceneData()` | core/scene-loader.js | 场景数据加载 |
 | `getCollisionElements()` | core/scene-loader.js | 碰撞元素（walls/rects/circles/finishes/parkZones） |
 | `getSceneRules()` | core/scene-loader.js | 操作规则（noReverse/noStopAfterGo） |
+| `getSceneTimers()` | core/scene-loader.js | 计时器配置 |
+| `updateTimerBars()` | ui/timer-bars.js | 计时器进度条 UI |
 | `getSceneVars()` | core/scene-loader.js | 动态参数变量表（调试） |
 | `getRenderElements()` | core/scene-loader.js | 绘制元素 |
 | `sceneViewport()` | core/scene-loader.js | 视口自适应 |
