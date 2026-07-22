@@ -9,7 +9,7 @@
 // - label: 文字
 
 import { getRenderElements } from '../core/scene-loader.js';
-import { viewport } from '../state/store.js';
+import { viewport, scene } from '../state/store.js';
 import { w2s } from '../core/geometry.js';
 import { wpoly, wlabel } from './canvas-helpers.js';
 
@@ -79,6 +79,10 @@ export function drawScene() {
         drawRectObstacle(ctx, el.x, el.y, el.w, el.h, el.fill, el.stroke);
         break;
 
+      case 'parkZone':
+        drawParkZone(ctx, el);
+        break;
+
       case 'circleObstacle':
         drawCircleObstacle(ctx, el.x, el.y, el.r, el.fill, el.stroke);
         break;
@@ -110,4 +114,30 @@ function drawCircleObstacle(ctx, x, y, r, fill, stroke) {
   ctx.arc(p.x, p.y, r * viewport.vscale, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+}
+
+// 停车区：半透明矩形框（已停车时变绿），标注要求朝向
+function drawParkZone(ctx, el) {
+  const p = w2s(el.x, el.y);
+  const hw = (el.w / 2) * viewport.vscale;
+  const hh = (el.h / 2) * viewport.vscale;
+  const parked = scene.parked;
+  ctx.fillStyle = parked ? 'rgba(60,220,110,0.18)' : 'rgba(80,160,255,0.12)';
+  ctx.strokeStyle = parked ? 'rgba(60,220,110,0.8)' : 'rgba(80,160,255,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6 * viewport.vscale, 4 * viewport.vscale]);
+  ctx.fillRect(p.x - hw, p.y - hh, hw * 2, hh * 2);
+  ctx.strokeRect(p.x - hw, p.y - hh, hw * 2, hh * 2);
+  ctx.setLineDash([]);
+  // 朝向指示（车头方向小箭头）
+  if (el.heading != null) {
+    const r = Math.min(hw, hh) * 0.5;
+    const rad = (el.heading * Math.PI) / 180;
+    ctx.strokeStyle = parked ? 'rgba(60,220,110,0.9)' : 'rgba(80,160,255,0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.x - Math.sin(rad) * r, p.y + Math.cos(rad) * r);
+    ctx.lineTo(p.x + Math.sin(rad) * r, p.y - Math.cos(rad) * r);
+    ctx.stroke();
+  }
 }

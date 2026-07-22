@@ -209,7 +209,7 @@ function substitute(value, vars) {
 
 // 缓存：当前场景展开后的元素（px）与碰撞元素。loadScene 时刷新。
 let _resolvedPx = []; // 展开后的元素，mm 已转 px
-let _collision = { walls: [], rects: [], circles: [], finishes: [] };
+let _collision = { walls: [], rects: [], circles: [], finishes: [], parkZones: [] };
 let _bboxPx = null;
 let _carInitPx = { x: 0, y: 0, heading: 0 }; // 车辆初始位置（px），含动态参数替换
 let _rules = {}; // 场景操作规则（noReverse / noStopAfterGo 等）
@@ -241,11 +241,12 @@ export function loadSceneData(sceneConfig) {
   const ci = carInitMm || { x: 0, y: 0, heading: 0 };
   _carInitPx = { x: ci.x / s, y: ci.y / s, heading: ci.heading };
 
-  // 提取碰撞元素 + 终点线
+  // 提取碰撞元素 + 终点线 + 停车区
   const walls = [];
   const rects = [];
   const circles = [];
   const finishes = [];
+  const parkZones = [];
   for (const el of _resolvedPx) {
     if (el.type === 'wall') {
       walls.push({ x1: el.x1, y1: el.y1, x2: el.x2, y2: el.y2, collisionReason: el.collisionReason });
@@ -254,10 +255,21 @@ export function loadSceneData(sceneConfig) {
     } else if (el.type === 'circleObstacle') {
       circles.push({ x: el.x, y: el.y, r: el.r, collisionReason: el.collisionReason });
     } else if (el.type === 'finish') {
-      finishes.push({ x1: el.x1, y1: el.y1, x2: el.x2, y2: el.y2, reason: el.reason });
+      finishes.push({
+        x1: el.x1, y1: el.y1, x2: el.x2, y2: el.y2,
+        reason: el.reason,
+        requireParked: el.requireParked, // 是否要求先完成入库停车
+        notParkedReason: el.notParkedReason,
+      });
+    } else if (el.type === 'parkZone') {
+      parkZones.push({
+        x: el.x, y: el.y, w: el.w, h: el.h,
+        heading: el.heading,         // 要求的车头朝向 °
+        headingTol: el.headingTol,   // 朝向容差 °
+      });
     }
   }
-  _collision = { walls, rects, circles, finishes };
+  _collision = { walls, rects, circles, finishes, parkZones };
 
   // bbox（用替换后的 bboxMm）
   _bboxPx = computeBBoxPx(bboxMm, _resolvedPx, s);
@@ -274,6 +286,7 @@ function toPx(el, s) {
       if (el.poly) return { ...el, poly: el.poly.map((p) => ({ x: p.x / s, y: p.y / s })) };
       return { ...el, x1: el.x1 / s, y1: el.y1 / s, x2: el.x2 / s, y2: el.y2 / s };
     case 'rectObstacle':
+    case 'parkZone':
       return { ...el, x: el.x / s, y: el.y / s, w: el.w / s, h: el.h / s };
     case 'circleObstacle':
       return { ...el, x: el.x / s, y: el.y / s, r: el.r / s };
@@ -313,7 +326,7 @@ function elementPoints(el) {
   if (el.points) return el.points;
   if (el.poly) return el.poly;
   if (el.type === 'wall' || el.type === 'line') return [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }];
-  if (el.type === 'rectObstacle') {
+  if (el.type === 'rectObstacle' || el.type === 'parkZone') {
     const hw = el.w / 2, hh = el.h / 2;
     return [{ x: el.x - hw, y: el.y - hh }, { x: el.x + hw, y: el.y + hh }];
   }

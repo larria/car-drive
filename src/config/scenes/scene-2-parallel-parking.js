@@ -1,84 +1,68 @@
-// 场景2：侧方位停车
-// 行车道宽 5000mm、长 20000mm；右侧路边停车格宽 PW=2500、深 PL=5410。
-// 前后参考车仅视觉填充（不碰撞），保持与原实现一致。
-// 坐标 mm。
+// 场景2：侧方位停车（国标）
+// 库长 L = 1.5×车长 + 1.0m；库宽 B1 = 车宽 + 0.80m；车道宽 B2 = 1.5×车宽 + 0.80m
+// 流程：直行驶过库位 → 倒车斜向入库 → 停车（车头朝向与路边平行）→ 左打满出库 → 直行过绿线通过
+// 坐标 mm。车道沿 -y 方向（车朝上行驶），库位在车道右侧（+x，路边）。
+//
+// 依赖车型参数（params）；停车区 parkZone 检测完全入库 + 朝向；finish 绿线要求先入库停车。
 
-const roadW = 5000;
-const roadL = 20000;
-const PW = 2500;
-const PL = 5410;
-const slotX = roadW / 2;
+const ROAD_L = 30000; // 车道总长 mm
 
 export const scene2 = {
   id: 'parallel-parking',
   name: '侧方位停车',
   scale: 7,
+  // 动态参数：库长/库宽/车道宽均依赖当前车辆
+  params: (V) => ({
+    L: V.length * 1.5 + 1000, // 库长
+    B1: V.width + 800, // 库宽
+    B2: V.width * 1.5 + 800, // 车道宽
+    ROAD_L,
+  }),
   viewport: {
-    bbox: { minX: -5000, maxX: 8000, minY: -12000, maxY: 12000 },
+    bbox: { minX: '${-B2/2 - 1000}', maxX: '${B2/2 + B1 + 1000}', minY: '${-ROAD_L/2 - 1000}', maxY: '${ROAD_L/2 + 1000}' },
     maxScale: 0.7,
   },
-  carInit: { x: 0, y: 5000, heading: 0 },
-  rules: {
-    noReverse: true, // 不允许中途倒车
-    noStopAfterGo: true, // 按 W 起步后不允许松开/停车
-  },
+  carInit: { x: 0, y: '${ROAD_L/2 - 2000}', heading: 0 }, // 车道下端，朝上
+  // 侧方流程需倒车与入库停车，不适用 noReverse/noStopAfterGo
   elements: [
-    // 行车道路面
+    // 车道路面（行车道）
     {
       type: 'lane',
       points: [
-        { x: -roadW / 2, y: -roadL / 2 },
-        { x: roadW / 2, y: -roadL / 2 },
-        { x: roadW / 2, y: roadL / 2 },
-        { x: -roadW / 2, y: roadL / 2 },
+        { x: '${-B2/2}', y: '${-ROAD_L/2}' },
+        { x: '${B2/2}', y: '${-ROAD_L/2}' },
+        { x: '${B2/2}', y: '${ROAD_L/2}' },
+        { x: '${-B2/2}', y: '${ROAD_L/2}' },
       ],
       fill: 'rgba(40,50,60,0.6)',
     },
-    // 停车格背景
+    // 库位路面（路边，车头朝上时右侧）
     {
       type: 'lane',
       points: [
-        { x: slotX, y: -PL * 1.5 },
-        { x: slotX + PW, y: -PL * 1.5 },
-        { x: slotX + PW, y: PL * 0.5 },
-        { x: slotX, y: PL * 0.5 },
+        { x: '${B2/2}', y: '${-L/2}' },
+        { x: '${B2/2 + B1}', y: '${-L/2}' },
+        { x: '${B2/2 + B1}', y: '${L/2}' },
+        { x: '${B2/2}', y: '${L/2}' },
       ],
       fill: 'rgba(50,80,50,0.3)',
     },
-    // 道路边界墙（碰撞）
-    { type: 'wall', x1: -roadW / 2, y1: -roadL / 2, x2: -roadW / 2, y2: roadL / 2, stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
-    { type: 'wall', x1: roadW / 2, y1: -roadL / 2, x2: roadW / 2, y2: roadL / 2, stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
-    // 目标车位边框（黄色，视觉）
-    { type: 'line', x1: slotX, y1: -PL / 2, x2: slotX + PW, y2: -PL / 2, stroke: 'rgba(255,220,50,0.9)', width: 1 },
-    { type: 'line', x1: slotX, y1: PL / 2, x2: slotX + PW, y2: PL / 2, stroke: 'rgba(255,220,50,0.9)', width: 1 },
-    { type: 'line', x1: slotX, y1: -PL / 2, x2: slotX, y2: -PL * 1.5 + 400, stroke: 'rgba(255,220,50,0.9)', width: 1 },
-    { type: 'line', x1: slotX + PW, y1: -PL / 2, x2: slotX + PW, y2: -PL * 1.5 + 400, stroke: 'rgba(255,220,50,0.9)', width: 1 },
-    // 参考车（前后，仅视觉）
-    {
-      type: 'lane',
-      points: [
-        { x: slotX, y: -PL * 1.5 },
-        { x: slotX + PW, y: -PL * 1.5 },
-        { x: slotX + PW, y: -PL * 1.5 + 400 },
-        { x: slotX, y: -PL * 1.5 + 400 },
-      ],
-      fill: 'rgba(120,120,120,0.4)',
-    },
-    {
-      type: 'lane',
-      points: [
-        { x: slotX, y: PL * 0.5 },
-        { x: slotX + PW, y: PL * 0.5 },
-        { x: slotX + PW, y: PL * 0.5 - 400 },
-        { x: slotX, y: PL * 0.5 - 400 },
-      ],
-      fill: 'rgba(120,120,120,0.4)',
-    },
-    // 中心虚线
-    { type: 'line', x1: 0, y1: -roadL / 2, x2: 0, y2: roadL / 2, stroke: 'rgba(255,220,50,0.4)', width: 0.7, dashed: true },
-    { type: 'label', x: 0, y: -roadL / 2 + 1500, text: '侧方位停车', color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+    // 车道边界墙（碰撞）：左侧 + 库位外侧（路边）
+    { type: 'wall', x1: '${-B2/2}', y1: '${-ROAD_L/2}', x2: '${-B2/2}', y2: '${ROAD_L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
+    { type: 'wall', x1: '${B2/2 + B1}', y1: '${-L/2}', x2: '${B2/2 + B1}', y2: '${L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
+    // 库位前后边线（碰撞，库位两端的角）：库位前端(y=-L/2)与后端(y=L/2)的外侧短边
+    { type: 'wall', x1: '${B2/2}', y1: '${-L/2}', x2: '${B2/2 + B1}', y2: '${-L/2}', stroke: 'rgba(255,220,50,0.9)', width: 1, collisionReason: '碰擦前车，考试不合格' },
+    { type: 'wall', x1: '${B2/2}', y1: '${L/2}', x2: '${B2/2 + B1}', y2: '${L/2}', stroke: 'rgba(255,220,50,0.9)', width: 1, collisionReason: '碰擦后车，考试不合格' },
+    // 库位开口侧（车道侧）的参考线：库位与车道分界，仅视觉（车辆由此驶入）
+    { type: 'line', x1: '${B2/2}', y1: '${-L/2}', x2: '${B2/2}', y2: '${L/2}', stroke: 'rgba(255,220,50,0.5)', width: 1, dashed: true },
+    // 停车区（parkZone）：库位中心，要求车头朝上(heading=0)，容差 15°
+    { type: 'parkZone', x: '${B2/2 + B1/2}', y: 0, w: '${B1}', h: '${L}', heading: 0, headingTol: 15 },
+    // 出口终点线（绿线）：库位前方，驶过即通过；要求先完成入库停车
+    { type: 'finish', x1: '${-B2/2}', y1: '${-L/2 - 3000}', x2: '${B2/2}', y2: '${-L/2 - 3000}', stroke: 'rgba(60,230,120,0.9)', width: 1.6, reason: '车辆顺利通过侧方位停车', requireParked: true, notParkedReason: '未完成侧方入库，考试不合格' },
     // 起点线
-    { type: 'line', x1: -roadW / 2, y1: 5000, x2: roadW / 2, y2: 5000, stroke: 'rgba(50,220,100,0.7)', width: 1 },
-    { type: 'label', x: 0, y: 5400, text: '▼ 起点线', color: 'rgba(50,220,100,0.8)', fontSize: 11 },
+    { type: 'line', x1: '${-B2/2}', y1: '${ROAD_L/2 - 1000}', x2: '${B2/2}', y2: '${ROAD_L/2 - 1000}', stroke: 'rgba(50,220,100,0.7)', width: 1 },
+    { type: 'label', x: 0, y: '${ROAD_L/2 - 500}', text: '▼ 起点线', color: 'rgba(50,220,100,0.8)', fontSize: 11 },
+    { type: 'label', x: '${B2/2 + B1/2}', y: '${L/2 + 1200}', text: '侧方车位', color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+    { type: 'label', x: 0, y: '${-L/2 - 4000}', text: '通过线 →', color: 'rgba(60,230,120,0.7)', fontSize: 12 },
   ],
 };

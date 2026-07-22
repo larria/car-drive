@@ -1,18 +1,41 @@
-// 碰撞检测 + 通过判定
+// 碰撞检测 + 通过判定 + 停车区判定
 //
 // 碰撞元素来源（统一为线段列表 + 矩形/圆形障碍物）：
 // - 场景配置中的 wall / rectObstacle / circleObstacle（静态，由 scene-loader 提供）
 // - 运行时 obstacles 数组（场景4 鼠标放置）
 //
-// 通过判定：场景配置中的 finish（终点线），车身穿过时触发"测试通过"。
+// 通过判定：场景配置中的 finish（终点线），车身穿过时触发"考试合格"。
+//   finish 可声明 requireParked：要求先在 parkZone 完成入库停车，否则失败。
+//
+// 停车区判定：场景配置中的 parkZone（矩形 + 朝向要求），车身完全在区内 + 朝向匹配 +
+//   停车 → 标记 scene.parked（供 finish 联动判定）。
 //
 // 碰撞后停车并触发失败遮罩（通过 setCollision）；
 // 通过时停车并触发通过遮罩（通过 setPassed）。
 
 import { bodyCorners } from './geometry.js';
-import { car, scene, setCollision, setPassed } from '../state/store.js';
+import { car, scene, setCollision, setPassed, setParked } from '../state/store.js';
 import { getCollisionElements } from './scene-loader.js';
 import { showFailOverlay, showPassOverlay, hideFailOverlay } from '../ui/overlay.js';
+
+// 车身四角是否全部在矩形内（x,y 为矩形中心，w/h 尺寸，px）
+function carInRect(corners, rx, ry, rw, rh) {
+  const minX = rx - rw / 2;
+  const maxX = rx + rw / 2;
+  const minY = ry - rh / 2;
+  const maxY = ry + rh / 2;
+  for (const c of corners) {
+    if (c.x < minX || c.x > maxX || c.y < minY || c.y > maxY) return false;
+  }
+  return true;
+}
+
+// 朝向匹配（°，考虑 0/360 环绕，容差 tol）
+function headingMatch(hdg, target, tol = 15) {
+  if (target == null) return true;
+  const diff = Math.abs(((hdg - target) % 360 + 540) % 360 - 180);
+  return diff <= tol;
+}
 
 // 线段相交（叉积法）
 export function segIntersect(p1, p2, p3, p4) {
@@ -65,8 +88,8 @@ function triggerPass(reason) {
 }
 
 export function checkCollision() {
-  const { walls, rects, circles, finishes } = getCollisionElements();
-  if (walls.length === 0 && rects.length === 0 && circles.length === 0 && finishes.length === 0 && scene.obstacles.length === 0) return;
+  const { walls, rects, circles, finishes, parkZones } = getCollisionElements();
+  if (walls.length === 0 && rects.length === 0 && circles.length === 0 && finishes.length === 0 && parkZones.length === 0 && scene.obstacles.length === 0) return;
 
   const corners = bodyCorners(car.x, car.y, car.heading);
   const edges = [
@@ -88,13 +111,29 @@ export function checkCollision() {
     }
   }
 
-  // 终点线通过判定（车身穿过即合格）
+  // 停车区检测：车身完全在区内 + 朝向匹配 + 停车 → 标记 parked
+  if (!scene.parked && parkZones.length > 0) {
+    for (const z of parkZones) {
+      if (carInRect(corners, z.x, z.y, z.w, z.h) && Math.abs(car.speed) < 0.05) {
+        if (headingMatch(car.heading, z.heading, z.headingTol)) {
+          setParked();
+          break;
+        }
+      }
+    }
+  }
+
+  // 终点线通过判定（车身穿过即合格；若要求先入库停车则校验 parked）
   for (const seg of finishes) {
     const p3 = { x: seg.x1, y: seg.y1 };
     const p4 = { x: seg.x2, y: seg.y2 };
     for (const [a, b] of edges) {
       if (segIntersect(a, b, p3, p4)) {
-        triggerPass(seg.reason || '车辆顺利通过终点');
+        if (seg.requireParked && !scene.parked) {
+          triggerCollision(seg.notParkedReason || '未完成入库停车，考试不合格');
+        } else {
+          triggerPass(seg.reason || '车辆顺利通过终点');
+        }
         return;
       }
     }

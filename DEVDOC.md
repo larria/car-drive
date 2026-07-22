@@ -368,7 +368,8 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `lane` | 填充多边形 | 否 | 路面/背景 |
 | `wall` | 描边线段 | **是** | 边界墙、车道边线（压线失败） |
 | `line` | 描边线段/折线（可虚线） | 否 | 中心虚线、参考线、起点线 |
-| `finish` | 描边线段（绿色虚线） | **通过判定** | 终点线，车身穿过即"考试合格" |
+| `finish` | 描边线段（绿色虚线） | **通过判定** | 终点线，车身穿过即"考试合格"；可声明 `requireParked` 要求先入库停车 |
+| `parkZone` | 半透明矩形框 + 朝向箭头 | **停车判定** | 停车区，车身完全在区内 + 朝向匹配 + 停车 → 标记 `parked` |
 | `rectObstacle` | 填充+描边矩形 | **是** | 静态方形障碍物 |
 | `circleObstacle` | 填充+描边圆 | **是** | 静态圆形障碍物 |
 | `label` | 文字 | 否 | 场景标题、起点提示 |
@@ -388,7 +389,11 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 { type:'line', poly:[{x,y},...], stroke, width, dashed, dashPattern }  // 折线形式
 
 // finish（终点线，通过判定）
-{ type:'finish', x1,y1,x2,y2, stroke:'rgba(60,230,120,0.9)', width:1.6, reason:'车辆顺利通过直角转弯' }
+{ type:'finish', x1,y1,x2,y2, stroke:'rgba(60,230,120,0.9)', width:1.6, reason:'车辆顺利通过直角转弯',
+  requireParked:false, notParkedReason:'未完成入库停车，考试不合格' }  // requireParked:true 时需先 parkZone 停车
+
+// parkZone（停车区，停车判定）
+{ type:'parkZone', x,y, w,h, heading:0, headingTol:15 }  // x,y 中心；heading 要求朝向°，headingTol 容差°
 
 // rectObstacle（碰撞）
 { type:'rectObstacle', x,y, w,h, fill, stroke, collisionReason:'撞到障碍物' }  // x,y 为中心
@@ -409,7 +414,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 |---|---|---|---|---|
 | 0 | `right-angle` | 直角转弯 | 动态参数（车道宽=轴距+1m）+ `finish` 终点线 | noReverse + noStopAfterGo |
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
-| 2 | `parallel-parking` | 侧方位停车 | 纯数据，参考车为 `lane`（仅视觉） | noReverse + noStopAfterGo |
+| 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked） | 无（流程需倒车+停车） |
 | 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
 | 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` | 无 |
 
@@ -455,7 +460,8 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
    - `wall` → `walls`（线段 + collisionReason）
    - `rectObstacle` → `rects`
    - `circleObstacle` → `circles`
-   - `finish` → `finishes`（线段 + reason）
+   - `finish` → `finishes`（线段 + reason + requireParked）
+   - `parkZone` → `parkZones`（矩形 + heading + headingTol）
 6. **缓存 rules / carInit**：`_rules`、`_carInitPx`（已替换并转 px）。
 7. **计算 bbox** `computeBBoxPx()`：优先用替换后的 `viewport.bbox`，否则从所有元素点集推导（含 1000mm padding）。
 
@@ -466,7 +472,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | 函数 | 返回 | 说明 |
 |---|---|---|
 | `getRenderElements()` | px 元素数组 | 供 `scene-render` 遍历绘制 |
-| `getCollisionElements()` | `{walls, rects, circles, finishes}` | 供 `checkCollision`（均 px） |
+| `getCollisionElements()` | `{walls, rects, circles, finishes, parkZones}` | 供 `checkCollision`（均 px） |
 | `getSceneRules()` | `{noReverse?, noStopAfterGo?}` | 当前场景操作规则，供 `checkRules` |
 | `getSceneVars()` | `{RW?, ...}` | 当前场景动态参数变量表（调试） |
 | `getBBoxPx()` | `{minX,maxX,minY,maxY}` | 包围盒 px |
@@ -564,11 +570,20 @@ accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 ```
 车身 4 角点 (bodyCorners) → 4 条边
  ├── 场景墙 walls：每条墙线段与车身 4 边 segIntersect → triggerCollision
- ├── 终点线 finishes：车身边与 finish 线段相交 → triggerPass
+ ├── 停车区 parkZones：车身四角全在区内 + 朝向匹配 + 停车 → setParked（一次性标记）
+ ├── 终点线 finishes：车身边与 finish 线段相交 →
+ │    若 requireParked 且未 parked → triggerCollision(notParkedReason)；否则 triggerPass
  ├── 矩形障碍物（静态 rects + 运行时 rect）：
  │    边线相交 / 车身角点在矩形内 / 障碍物中心在车身内 → triggerCollision
  └── 圆形障碍物（运行时 circle）：circlePolyIntersect → triggerCollision
 ```
+
+### 停车区判定（parkZone）
+
+- `carInRect(corners, x,y,w,h)`：车身四角全部在矩形内（px）。
+- `headingMatch(hdg, target, tol)`：朝向匹配（考虑 0/360 环绕，容差 tol，默认 15°）。
+- 满足「完全在区内 + 朝向匹配 + `|speed| < 0.05`」→ `setParked()` 标记 `scene.parked`（一次性，loadScene 重置）。
+- finish 可声明 `requireParked`：触发时若未 parked → 失败（`notParkedReason`）；否则通过。用于"先入库停车再过线"的流程（侧方位停车）。
 
 ### triggerCollision / triggerPass
 
@@ -580,7 +595,8 @@ triggerPass(reason)      → setPassed(reason);          car.speed=0; showPassOv
 ### 重要行为
 
 - **边界越线靠精确相交，无容差**：车身整体冲出墙外但未"压线"不触发；车身跨墙则触发。如需容差可将 wall 线段向内缩减。
-- **通过判定**：车身任意边与 `finish` 线段相交即"考试合格"，停车 + 绿色通过遮罩。
+- **通过判定**：车身任意边与 `finish` 线段相交即"考试合格"，停车 + 绿色通过遮罩。若 finish 声明 `requireParked`，需先在 `parkZone` 完成入库停车，否则失败。
+- **停车区判定**：车身完全在 `parkZone` 内 + 朝向匹配 + 停车 → 标记 `scene.parked`，不影响通过/失败，供 finish 联动。
 - 碰撞与通过互斥：先检测墙（失败优先于通过），任一触发后当帧停止后续检测。
 
 ### 操作规则检查（`core/rules.js: checkRules`）
@@ -859,7 +875,11 @@ ctx.setTransform(DPR, 0, 0, DPR, 0, 0);  // 绘制坐标系仍用 CSS px
 
 ### 通过判定
 
-任意场景在配置里加一条 `finish` 元素即可拥有通过判定，车身穿过即"考试合格"。
+任意场景在配置里加一条 `finish` 元素即可拥有通过判定，车身穿过即"考试合格"。若需"先完成某前置动作再过线"（如侧方入库），给 finish 加 `requireParked: true` + `notParkedReason`，配合 `parkZone` 元素使用。
+
+### 停车区判定
+
+任意场景加一条 `parkZone` 元素（矩形 + `heading`/`headingTol`），车身完全驶入且朝向匹配且停车时自动标记 `scene.parked`。配合 `finish` 的 `requireParked` 可实现"入库停车 → 出库过线"的分阶段流程。
 
 ### 操作规则
 
@@ -925,10 +945,12 @@ store.scene.startedW                 // 是否已按 W 起步
 | `w2s / s2w / rot` | core/geometry.js | 坐标变换 |
 | `update()` | core/physics.js | 物理+轨迹+规则检查+碰撞触发 |
 | `checkRules()` | core/rules.js | 操作规则检查（noReverse/noStopAfterGo） |
-| `checkCollision()` | core/collision.js | 碰撞+通过检测 |
+| `checkCollision()` | core/collision.js | 碰撞+通过+停车区检测 |
 | `triggerCollision/triggerPass` | core/collision.js | 触发失败/通过（triggerCollision 供 rules 复用） |
+| `carInRect/headingMatch` | core/collision.js | 停车区检测辅助 |
+| `setParked/clearParked` | state/store.js | 停车标记 |
 | `loadSceneData()` | core/scene-loader.js | 场景数据加载 |
-| `getCollisionElements()` | core/scene-loader.js | 碰撞元素（walls/rects/circles/finishes） |
+| `getCollisionElements()` | core/scene-loader.js | 碰撞元素（walls/rects/circles/finishes/parkZones） |
 | `getSceneRules()` | core/scene-loader.js | 操作规则（noReverse/noStopAfterGo） |
 | `getSceneVars()` | core/scene-loader.js | 动态参数变量表（调试） |
 | `getRenderElements()` | core/scene-loader.js | 绘制元素 |

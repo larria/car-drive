@@ -39,6 +39,7 @@ export const scene = {
   currentIndex: 0, // 当前场景在列表中的序号（兼容 1-5 键）
   collision: { hit: false, reason: '' },
   passed: { done: false, reason: '' }, // 通过判定（终点线触发）
+  parked: false, // 是否已在停车区完成停车（parkZone 触发，供 finish 联动判定）
   obstacles: [], // 场景4运行时放置的障碍物 [{type:'circle'|'rect', x,y, r|w,h}]
   obstacleMode: false,
   placingObstacle: null, // 正在拖拽放置的障碍物
@@ -114,8 +115,17 @@ export function clearPassed() {
   scene.passed.reason = '';
 }
 
+// 停车区停车标记
+export function setParked() {
+  scene.parked = true;
+}
+export function clearParked() {
+  scene.parked = false;
+}
+
 // 场景重置时一并清空碰撞与通过状态
 export function clearOutcome() {
   clearCollision();
   clearPassed();
+  clearParked();
 }
