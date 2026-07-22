@@ -9,6 +9,7 @@ export const scene4 = {
     maxScale: 0.7,
   },
   carInit: { x: 0, y: 0, heading: 0 },
+  allowPlaceCar: true, // 允许鼠标自由放置车辆
   obstacleMode: true, // 启用运行时障碍物放置
   elements: [
     { type: 'label', x: 0, y: 0, text: '自由练习场', color: 'rgba(255,255,255,0.15)', fontSize: 18 },

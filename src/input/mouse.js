@@ -3,6 +3,7 @@
 import { viewport, car, scene, placement, drag, input, clearOutcome } from '../state/store.js';
 import { VIEWPORT, SCALE } from '../config/physics.js';
 import { s2w, w2s } from '../core/geometry.js';
+import { getSceneAllowPlaceCar } from '../core/scene-loader.js';
 import { hideFailOverlay, hidePassOverlay } from '../ui/overlay.js';
 
 export function setupMouse(canvas) {
@@ -47,8 +48,8 @@ export function setupMouse(canvas) {
         }
       });
       if (minI >= 0 && minD < 300 / SCALE) scene.obstacles.splice(minI, 1);
-    } else if (isLeft && !isAlt) {
-      // 放置车辆
+    } else if (isLeft && !isAlt && getSceneAllowPlaceCar()) {
+      // 放置车辆（仅允许放置车辆的场景）
       placement.placeWX = wp.x;
       placement.placeWY = wp.y;
       placement.placeHeading = car.heading;

@@ -333,6 +333,7 @@ main.js
     { id:'stop', type:'stopAccum', limit:2000, exceptInZone:true, label:'中途停车', reason:'停车超时' },
   ],
   obstacleMode: false,               // true 启用运行时障碍物放置（仅自由场景）
+  allowPlaceCar: false,              // true 允许鼠标自由放置车辆（仅自由场景，其余场景默认禁用）
   elements: [ /* 几何元素，字段值支持 ${expr} 占位符 */ ],
 }
 ```
@@ -438,7 +439,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
 | 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | 无；timers：30s 总时 + 2s 中途停车（库内除外） |
 | 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
-| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` | 无 |
+| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` | 无 |
 
 ### generator（生成器）
 
@@ -497,6 +498,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `getCollisionElements()` | `{walls, rects, circles, finishes, parkZones}` | 供 `checkCollision`（均 px） |
 | `getSceneRules()` | `{noReverse?, noStopAfterGo?}` | 当前场景操作规则，供 `checkRules` |
 | `getSceneTimers()` | `[{id,type,limit,...}]` | 当前场景计时器配置，供 `checkTimers` |
+| `getSceneAllowPlaceCar()` | `boolean` | 当前场景是否允许鼠标放置车辆 |
 | `getSceneVars()` | `{RW?, ...}` | 当前场景动态参数变量表（调试） |
 | `getBBoxPx()` | `{minX,maxX,minY,maxY}` | 包围盒 px |
 | `sceneViewport(cfg)` | `{vs, vpOffX, vpOffY}` | 自适应视口参数 |
@@ -730,7 +732,7 @@ W/S/A/D 通过 `input.keys` 状态数组持续读取，每帧 `update()` 处理�
 
 | 操作 | 功能 |
 |---|---|
-| 左键单击/拖拽（普通） | 放置车辆 + 拖拽设定朝向 |
+| 左键单击/拖拽（普通） | 放置车辆 + 拖拽设定朝向（仅 `allowPlaceCar` 场景，默认仅自由练习） |
 | Alt + 左键拖拽 | 平移视口 |
 | 中键拖拽 | 平移视口 |
 | 滚轮 | 缩放视口（×0.91 / ×1.10，范围 0.2–5.0） |

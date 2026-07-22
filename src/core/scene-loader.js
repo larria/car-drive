@@ -215,6 +215,7 @@ let _carInitPx = { x: 0, y: 0, heading: 0 }; // 车辆初始位置（px），含
 let _rules = {}; // 场景操作规则（noReverse / noStopAfterGo 等）
 let _vars = {}; // 当前场景动态参数变量表（调试用）
 let _timers = []; // 场景计时器配置
+let _allowPlaceCar = false; // 是否允许鼠标放置车辆（自由场景等）
 
 function mm2px(sceneConfig, v) {
   return v / (sceneConfig.scale || 7);
@@ -225,6 +226,7 @@ export function loadSceneData(sceneConfig) {
   const s = sceneConfig.scale || 7;
   _rules = sceneConfig.rules || {};
   _timers = Array.isArray(sceneConfig.timers) ? sceneConfig.timers : [];
+  _allowPlaceCar = sceneConfig.allowPlaceCar === true;
 
   // 动态参数：基于当前车辆参数计算变量表
   _vars = typeof sceneConfig.params === 'function' ? sceneConfig.params(getVehicle()) || {} : {};
@@ -362,6 +364,11 @@ export function getSceneVars() {
 // 当前场景计时器配置
 export function getSceneTimers() {
   return _timers;
+}
+
+// 当前场景是否允许鼠标放置车辆
+export function getSceneAllowPlaceCar() {
+  return _allowPlaceCar;
 }
 
 // 当前场景 bbox（px）
