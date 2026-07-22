@@ -39,13 +39,16 @@ export const scene = {
   currentIndex: 0, // 当前场景在列表中的序号（兼容 1-5 键）
   collision: { hit: false, reason: '' },
   passed: { done: false, reason: '' }, // 通过判定（终点线触发）
-  parked: false, // 是否已在停车区完成停车（parkZone 触发，供 finish 联动判定）
+  parked: false, // 当前是否在停车区内（用于计时器库内除外、方向阶段判定）
+  parkCount: 0, // 累计完成入库次数（只增，供 finish requireParkCount 联动判定）
   obstacles: [], // 场景4运行时放置的障碍物 [{type:'circle'|'rect', x,y, r|w,h}]
   obstacleMode: false,
   placingObstacle: null, // 正在拖拽放置的障碍物
   startedW: false, // 是否已按 W 起步（用于 noStopAfterGo 规则）
   reversed: false, // 是否已倒过车（用于方向阶段规则）
   forwardAfterParked: false, // 入库后是否再次前进过（用于方向阶段规则）
+  dirPhase: 0, // 当前方向序列阶段索引（用于 strictDirection 规则）
+  dirPhaseStarted: false, // 当前阶段是否已开始行驶（用于 strictDirection 切换判定）
   timers: {}, // 计时器运行时状态 { [id]: { elapsed, active } }，由 core/timers 维护
 };
 
@@ -119,11 +122,20 @@ export function clearPassed() {
 }
 
 // 停车区停车标记
+// setParked: 进入停车区满足条件时调用（parked 置 true，parkCount 累计）
+// clearParkedCurrent: 离开停车区时调用（仅清当前 parked，保留 parkCount）
 export function setParked() {
-  scene.parked = true;
+  if (!scene.parked) {
+    scene.parked = true;
+    scene.parkCount += 1;
+  }
+}
+export function clearParkedCurrent() {
+  scene.parked = false;
 }
 export function clearParked() {
   scene.parked = false;
+  scene.parkCount = 0;
 }
 
 // 计时器状态
@@ -138,6 +150,8 @@ export function getTimerState(id) {
 export function resetDirectionFlags() {
   scene.reversed = false;
   scene.forwardAfterParked = false;
+  scene.dirPhase = 0;
+  scene.dirPhaseStarted = false;
 }
 
 // 场景重置时一并清空碰撞与通过状态

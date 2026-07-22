@@ -14,7 +14,7 @@
 // 通过时停车并触发通过遮罩（通过 setPassed）。
 
 import { bodyCorners } from './geometry.js';
-import { car, scene, setCollision, setPassed, setParked } from '../state/store.js';
+import { car, scene, setCollision, setPassed, setParked, clearParkedCurrent } from '../state/store.js';
 import { getCollisionElements } from './scene-loader.js';
 import { showFailOverlay, showPassOverlay, hideFailOverlay } from '../ui/overlay.js';
 
@@ -111,26 +111,36 @@ export function checkCollision() {
     }
   }
 
-  // 停车区检测：车身完全在区内 + 朝向匹配 + 停车 → 标记 parked
-  if (!scene.parked && parkZones.length > 0) {
+  // 停车区检测：车身完全在区内 + 朝向匹配 + 停车 → 标记 parked（累计 parkCount）
+  // 支持多次入库：离开停车区时清当前 parked（保留 parkCount），允许下次入库再次计数
+  if (parkZones.length > 0) {
+    let inZone = false;
     for (const z of parkZones) {
-      if (carInRect(corners, z.x, z.y, z.w, z.h) && Math.abs(car.speed) < 0.05) {
-        if (headingMatch(car.heading, z.heading, z.headingTol)) {
-          setParked();
-          break;
-        }
+      if (carInRect(corners, z.x, z.y, z.w, z.h) && Math.abs(car.speed) < 0.05 && headingMatch(car.heading, z.heading, z.headingTol)) {
+        inZone = true;
+        break;
       }
+    }
+    if (inZone && !scene.parked) {
+      setParked(); // parked 置 true + parkCount++（首次进入时计数）
+    } else if (!inZone && scene.parked) {
+      clearParkedCurrent(); // 离开停车区，清当前 parked（保留 parkCount）
     }
   }
 
-  // 终点线通过判定（车身穿过即合格；若要求先入库停车则校验 parked）
+  // 终点线通过判定（车身穿过即合格；若要求入库次数则校验 parkCount）
+  // triggerDirection: 'forward'/'reverse' 限制仅该方向穿过才触发（避免倒车误触）
   for (const seg of finishes) {
+    if (seg.triggerDirection === 'forward' && car.speed < 0) continue;
+    if (seg.triggerDirection === 'reverse' && car.speed > 0) continue;
     const p3 = { x: seg.x1, y: seg.y1 };
     const p4 = { x: seg.x2, y: seg.y2 };
+    // requireParkCount: 要求累计入库次数（requireParked:true 等价于 requireParkCount:1）
+    const need = seg.requireParked ? 1 : (seg.requireParkCount || 0);
     for (const [a, b] of edges) {
       if (segIntersect(a, b, p3, p4)) {
-        if (seg.requireParked && !scene.parked) {
-          triggerCollision(seg.notParkedReason || '未完成入库停车，考试不合格');
+        if (need > 0 && scene.parkCount < need) {
+          triggerCollision(seg.notParkedReason || '未完成入库，考试不合格');
         } else {
           triggerPass(seg.reason || '车辆顺利通过终点');
         }

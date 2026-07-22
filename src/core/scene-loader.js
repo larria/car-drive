@@ -262,7 +262,9 @@ export function loadSceneData(sceneConfig) {
       finishes.push({
         x1: el.x1, y1: el.y1, x2: el.x2, y2: el.y2,
         reason: el.reason,
-        requireParked: el.requireParked, // 是否要求先完成入库停车
+        requireParked: el.requireParked, // 要求先完成入库停车（等价于 requireParkCount:1）
+        requireParkCount: el.requireParkCount, // 要求累计入库次数（N）
+        triggerDirection: el.triggerDirection, // 限制触发方向 'forward'/'reverse'
         notParkedReason: el.notParkedReason,
       });
     } else if (el.type === 'parkZone') {

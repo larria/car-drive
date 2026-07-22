@@ -144,6 +144,8 @@ scene = {
   currentId, currentIndex,
   collision: { hit, reason },      // 失败状态
   passed: { done, reason },        // 通过状态（终点线触发）
+  parked: false,                   // 当前是否在停车区内
+  parkCount: 0,                    // 累计入库次数（只增，供 finish requireParkCount）
   obstacles: [],                   // 场景4运行时放置的障碍物
   obstacleMode, placingObstacle,
   startedW: false,                 // 是否已按 W 起步（noStopAfterGo 规则用）
@@ -370,6 +372,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `noStopAfterGo` | 按 W 起步后不允许松开/停车，W 松开且速度归零即判失败（"中途停车，考试不合格"） |
 | `noForwardBeforeParked` | 一旦倒车，入库(`parked`)前禁止再前进。`{ reason }` |
 | `noReverseAfterForwardParked` | 入库后再次前进（出库），禁止再倒车直至通过。`{ reason }` |
+| `strictDirection` | 严格方向序列：`{ sequence:['forward','reverse',...], reason }`，需先在当前段行驶过才允许切换到下一段，禁止同段内反向穿插（如 forward 段直接倒车）。支持多次进出的复杂流程（倒车入库） |
 
 `noStopAfterGo` 依赖 `scene.startedW` 标志（按 W 置 true）。
 方向阶段规则依赖 `scene.reversed`（倒过车）与 `scene.forwardAfterParked`（入库后前进过）标志，复用 `parkZone` 的 `parked` 信号切换阶段。三条标志均在 `loadScene` 与鼠标放置车辆时重置。
@@ -420,9 +423,10 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 
 // finish（终点线，通过判定）
 { type:'finish', x1,y1,x2,y2, stroke:'rgba(60,230,120,0.9)', width:1.6, reason:'车辆顺利通过直角转弯',
-  requireParked:false, notParkedReason:'未完成入库停车，考试不合格' }  // requireParked:true 时需先 parkZone 停车
+  requireParked:false, notParkedReason:'未完成入库停车，考试不合格',  // requireParked:true 等价于 requireParkCount:1
+  requireParkCount:0, triggerDirection:null }  // requireParkCount:N 要求累计入库N次；triggerDirection:'forward'/'reverse' 限制触发方向
 
-// parkZone（停车区，停车判定）
+// parkZone（停车区，停车判定，支持多次入库累计 parkCount）
 { type:'parkZone', x,y, w,h, heading:0, headingTol:15 }  // x,y 中心；heading 要求朝向°，headingTol 容差°
 
 // rectObstacle（碰撞）
@@ -445,7 +449,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | 0 | `right-angle` | 直角转弯 | 动态参数（车道宽=轴距+1m）+ `finish` 终点线 | noReverse + noStopAfterGo |
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
 | 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | noForwardBeforeParked + noReverseAfterForwardParked；timers：30s 总时 + 2s 中途停车（库内除外） |
-| 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
+| 3 | `reverse-garage` | 倒车入库 | 动态参数（库长=车长+0.7m，库宽2.3m/车道宽6.7m/控制线6.7m 固定）+ 单库位 `parkZone`（两次入库）+ `finish`（requireParkCount:2, triggerDirection:forward） | strictDirection（前进-倒车-前进-倒车-前进）；timers：30s + 2s 停车 |
 | 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` | 无 |
 
 ### generator（生成器）
@@ -603,9 +607,9 @@ accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 ```
 车身 4 角点 (bodyCorners) → 4 条边
  ├── 场景墙 walls：每条墙线段与车身 4 边 segIntersect → triggerCollision
- ├── 停车区 parkZones：车身四角全在区内 + 朝向匹配 + 停车 → setParked（一次性标记）
- ├── 终点线 finishes：车身边与 finish 线段相交 →
- │    若 requireParked 且未 parked → triggerCollision(notParkedReason)；否则 triggerPass
+ ├── 停车区 parkZones：在区内+朝向匹配+停车 → setParked(parkCount++)；离开 → clearParkedCurrent
+ ├── 终点线 finishes（triggerDirection 过滤方向）：车身边与 finish 线段相交 →
+ │    若 requireParkCount 未满足 → triggerCollision(notParkedReason)；否则 triggerPass
  ├── 矩形障碍物（静态 rects + 运行时 rect）：
  │    边线相交 / 车身角点在矩形内 / 障碍物中心在车身内 → triggerCollision
  └── 圆形障碍物（运行时 circle）：circlePolyIntersect → triggerCollision
@@ -615,8 +619,10 @@ accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 
 - `carInRect(corners, x,y,w,h)`：车身四角全部在矩形内（px）。
 - `headingMatch(hdg, target, tol)`：朝向匹配（考虑 0/360 环绕，容差 tol，默认 15°）。
-- 满足「完全在区内 + 朝向匹配 + `|speed| < 0.05`」→ `setParked()` 标记 `scene.parked`（一次性，loadScene 重置）。
-- finish 可声明 `requireParked`：触发时若未 parked → 失败（`notParkedReason`）；否则通过。用于"先入库停车再过线"的流程（侧方位停车）。
+- 满足「完全在区内 + 朝向匹配 + `|speed| < 0.05`」→ `setParked()`：`parked` 置 true 且 `parkCount` 累计 +1。
+- 离开停车区 → `clearParkedCurrent()`：仅清当前 `parked`（保留 `parkCount`），允许下次入库再次计数。支持多次入库（倒车入库两次入同一库位）。
+- finish 可声明 `requireParked`（=requireParkCount:1）或 `requireParkCount:N`：触发时若 `parkCount < N` → 失败（`notParkedReason`）；否则通过。
+- finish 可声明 `triggerDirection: 'forward'/'reverse'`：仅该方向穿过才触发，避免倒车误触（倒车入库通过线在倒车路径上时使用）。
 
 ### triggerCollision / triggerPass
 
@@ -642,8 +648,9 @@ triggerPass(reason)      → setPassed(reason);          car.speed=0; showPassOv
 | `noStopAfterGo` | `scene.startedW` 且 W 松开且 `car.speed < 0.05`（停车） | 中途停车，考试不合格 |
 | `noForwardBeforeParked` | `scene.reversed` 且未 `parked` 且前进 | 倒车后入库前不得前进，考试不合格 |
 | `noReverseAfterForwardParked` | `scene.forwardAfterParked` 且倒车 | 出库后不得再倒车，考试不合格 |
+| `strictDirection` | 当前方向不匹配 `sequence[dirPhase]` 且非合法切换（需先在当前段行驶过） | 操作顺序错误，考试不合格 |
 
-`scene.startedW`（按 W 置 true）、`scene.reversed`（倒车时置 true）、`scene.forwardAfterParked`（入库后前进时置 true）均在 `checkRules` 内标记，在 `loadScene` 与鼠标放置车辆时重置（`resetDirectionFlags`）。`triggerCollision` 已从 `collision.js` 导出供 `rules.js` 复用。
+`scene.startedW`（按 W 置 true）、`scene.reversed`（倒车时置 true）、`scene.forwardAfterParked`（入库后前进时置 true）、`scene.dirPhase`/`scene.dirPhaseStarted`（strictDirection 阶段）均在 `checkRules` 内标记，在 `loadScene` 与鼠标放置车辆时重置（`resetDirectionFlags`）。`triggerCollision` 已从 `collision.js` 导出供 `rules.js` 复用。
 
 ---
 
@@ -925,7 +932,7 @@ ctx.setTransform(DPR, 0, 0, DPR, 0, 0);  // 绘制坐标系仍用 CSS px
 
 ### 停车区判定
 
-任意场景加一条 `parkZone` 元素（矩形 + `heading`/`headingTol`），车身完全驶入且朝向匹配且停车时自动标记 `scene.parked`。配合 `finish` 的 `requireParked` 可实现"入库停车 → 出库过线"的分阶段流程。
+任意场景加 `parkZone` 元素（矩形 + `heading`/`headingTol`），车身完全驶入且朝向匹配且停车时累计 `parkCount`（离开后清当前 `parked`，允许重复入库）。配合 `finish` 的 `requireParkCount:N`（多次入库）或 `requireParked`（单次）、`triggerDirection`（限制触发方向）可实现复杂分阶段流程。
 
 ### 操作规则
 
@@ -996,7 +1003,7 @@ store.scene.forwardAfterParked       // 入库后是否再次前进过
 | `bodyCorners/outerCorners/wheelPositions` | core/geometry.js | 车辆几何点集（世界坐标） |
 | `w2s / s2w / rot` | core/geometry.js | 坐标变换 |
 | `update()` | core/physics.js | 物理+轨迹+规则检查+碰撞触发 |
-| `checkRules()` | core/rules.js | 操作规则检查（noReverse/noStopAfterGo） |
+| `checkRules()` | core/rules.js | 操作规则检查（noReverse/noStopAfterGo/方向阶段/strictDirection） |
 | `checkTimers(dt)` | core/timers.js | 计时器检查（totalCountdown/stopAccum） |
 | `checkCollision()` | core/collision.js | 碰撞+通过+停车区检测 |
 | `triggerCollision/triggerPass` | core/collision.js | 触发失败/通过（triggerCollision 供 rules 复用） |
