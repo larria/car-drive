@@ -56,9 +56,9 @@ export const scene2 = {
     // 车道边界墙（碰撞）：左侧 + 库位外侧（路边）
     { type: 'wall', x1: '${-B2/2}', y1: '${-ROAD_L/2}', x2: '${-B2/2}', y2: '${ROAD_L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
     { type: 'wall', x1: '${B2/2 + B1}', y1: '${-L/2}', x2: '${B2/2 + B1}', y2: '${L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
-    // 车道右边界白线（视觉，分两段避开库位开口）
-    { type: 'line', x1: '${B2/2}', y1: '${L/2}', x2: '${B2/2}', y2: '${ROAD_L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
-    { type: 'line', x1: '${B2/2}', y1: '${FINISH_Y}', x2: '${B2/2}', y2: '${-L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5 },
+    // 车道右边界白线（碰撞，分两段避开库位开口）
+    { type: 'wall', x1: '${B2/2}', y1: '${L/2}', x2: '${B2/2}', y2: '${ROAD_L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5, collisionReason: '车辆越出边界线' },
+    { type: 'wall', x1: '${B2/2}', y1: '${FINISH_Y}', x2: '${B2/2}', y2: '${-L/2}', stroke: 'rgba(255,255,255,0.85)', width: 1.5, collisionReason: '车辆越出边界线' },
     // 库位前后边线（碰撞，库位两端的角）：库位前端(y=-L/2)与后端(y=L/2)的外侧短边
     { type: 'wall', x1: '${B2/2}', y1: '${-L/2}', x2: '${B2/2 + B1}', y2: '${-L/2}', stroke: 'rgba(255,220,50,0.9)', width: 1, collisionReason: '碰擦前车，考试不合格' },
     { type: 'wall', x1: '${B2/2}', y1: '${L/2}', x2: '${B2/2 + B1}', y2: '${L/2}', stroke: 'rgba(255,220,50,0.9)', width: 1, collisionReason: '碰擦后车，考试不合格' },
