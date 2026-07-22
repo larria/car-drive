@@ -1,0 +1,15 @@
+{
+  "name": "car-drive",
+  "version": "1.0.0",
+  "private": true,
+  "description": "岚图知音 · 驾考练习模拟器（模块化重构版）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
