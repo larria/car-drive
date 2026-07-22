@@ -25,7 +25,14 @@ export const scene2 = {
     maxScale: 0.7,
   },
   carInit: { x: 0, y: '${START_Y + 500}', heading: 0 }, // 起点线略后方，朝上
-  // 侧方流程需倒车与入库停车，不适用 noReverse/noStopAfterGo
+  // 侧方流程需倒车与入库停车，不适用 noReverse/noStopAfterGo；
+  // 但需方向阶段约束（可复用于倒车入库等场景）
+  rules: {
+    // 一旦倒车，入库(parked)前禁止再前进
+    noForwardBeforeParked: { reason: '倒车后入库前不得前进，考试不合格' },
+    // 入库后再次前进（出库），禁止再倒车直至通过终点线
+    noReverseAfterForwardParked: { reason: '出库后不得再倒车，考试不合格' },
+  },
   timers: [
     { id: 'total', type: 'totalCountdown', limit: 30000, label: '总用时', reason: '30 秒内未完成，考试不合格' },
     { id: 'stop', type: 'stopAccum', limit: 2000, exceptInZone: true, label: '中途停车', reason: '中途停车超 2 秒，考试不合格' },

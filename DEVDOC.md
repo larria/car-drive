@@ -147,6 +147,8 @@ scene = {
   obstacles: [],                   // 场景4运行时放置的障碍物
   obstacleMode, placingObstacle,
   startedW: false,                 // 是否已按 W 起步（noStopAfterGo 规则用）
+  reversed: false,                 // 是否已倒过车（方向阶段规则用）
+  forwardAfterParked: false,       // 入库后是否再次前进过（方向阶段规则用）
 }
 
 // 车辆放置交互
@@ -366,8 +368,13 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 |---|---|
 | `noReverse` | 不允许中途倒车，`car.speed < 0` 即判失败（"中途倒车，考试不合格"） |
 | `noStopAfterGo` | 按 W 起步后不允许松开/停车，W 松开且速度归零即判失败（"中途停车，考试不合格"） |
+| `noForwardBeforeParked` | 一旦倒车，入库(`parked`)前禁止再前进。`{ reason }` |
+| `noReverseAfterForwardParked` | 入库后再次前进（出库），禁止再倒车直至通过。`{ reason }` |
 
-`noStopAfterGo` 依赖 `scene.startedW` 标志（按 W 置 true），在 `loadScene` 与鼠标放置车辆时重置为 false。未声明 `rules` 的场景（如自由练习）不受约束。
+`noStopAfterGo` 依赖 `scene.startedW` 标志（按 W 置 true）。
+方向阶段规则依赖 `scene.reversed`（倒过车）与 `scene.forwardAfterParked`（入库后前进过）标志，复用 `parkZone` 的 `parked` 信号切换阶段。三条标志均在 `loadScene` 与鼠标放置车辆时重置。
+
+**复用提示**：`noForwardBeforeParked` / `noReverseAfterForwardParked` 为通用「方向阶段规则」，可复用于侧方位、倒车入库等需要分阶段方向约束的场景——只要场景配了 `parkZone`（提供 parked 信号）即可直接声明这两条规则。
 
 ### 计时器（timers）
 
@@ -437,7 +444,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 |---|---|---|---|---|
 | 0 | `right-angle` | 直角转弯 | 动态参数（车道宽=轴距+1m）+ `finish` 终点线 | noReverse + noStopAfterGo |
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
-| 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | 无；timers：30s 总时 + 2s 中途停车（库内除外） |
+| 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | noForwardBeforeParked + noReverseAfterForwardParked；timers：30s 总时 + 2s 中途停车（库内除外） |
 | 3 | `reverse-garage` | 倒车入库 | 纯数据 | noReverse + noStopAfterGo |
 | 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` | 无 |
 
@@ -633,8 +640,10 @@ triggerPass(reason)      → setPassed(reason);          car.speed=0; showPassOv
 |---|---|---|
 | `noReverse` | `car.speed < 0`（倒车） | 中途倒车，考试不合格 |
 | `noStopAfterGo` | `scene.startedW` 且 W 松开且 `car.speed < 0.05`（停车） | 中途停车，考试不合格 |
+| `noForwardBeforeParked` | `scene.reversed` 且未 `parked` 且前进 | 倒车后入库前不得前进，考试不合格 |
+| `noReverseAfterForwardParked` | `scene.forwardAfterParked` 且倒车 | 出库后不得再倒车，考试不合格 |
 
-`scene.startedW` 在按 W 时置 true（`checkRules` 内标记），在 `loadScene` 与鼠标放置车辆时重置为 false。`triggerCollision` 已从 `collision.js` 导出供 `rules.js` 复用。
+`scene.startedW`（按 W 置 true）、`scene.reversed`（倒车时置 true）、`scene.forwardAfterParked`（入库后前进时置 true）均在 `checkRules` 内标记，在 `loadScene` 与鼠标放置车辆时重置（`resetDirectionFlags`）。`triggerCollision` 已从 `collision.js` 导出供 `rules.js` 复用。
 
 ---
 
@@ -957,6 +966,8 @@ store.car                            // 车辆运行状态
 store.scene.collision.hit            // 是否失败
 store.scene.passed.done              // 是否通过
 store.scene.startedW                 // 是否已按 W 起步
+store.scene.reversed                 // 是否已倒过车
+store.scene.forwardAfterParked       // 入库后是否再次前进过
 ```
 
 ### 实时调试

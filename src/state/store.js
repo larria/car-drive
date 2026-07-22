@@ -44,6 +44,8 @@ export const scene = {
   obstacleMode: false,
   placingObstacle: null, // 正在拖拽放置的障碍物
   startedW: false, // 是否已按 W 起步（用于 noStopAfterGo 规则）
+  reversed: false, // 是否已倒过车（用于方向阶段规则）
+  forwardAfterParked: false, // 入库后是否再次前进过（用于方向阶段规则）
   timers: {}, // 计时器运行时状态 { [id]: { elapsed, active } }，由 core/timers 维护
 };
 
@@ -132,10 +134,17 @@ export function getTimerState(id) {
   return scene.timers[id] || null;
 }
 
+// 方向阶段标志
+export function resetDirectionFlags() {
+  scene.reversed = false;
+  scene.forwardAfterParked = false;
+}
+
 // 场景重置时一并清空碰撞与通过状态
 export function clearOutcome() {
   clearCollision();
   clearPassed();
   clearParked();
+  resetDirectionFlags();
   resetTimers();
 }
