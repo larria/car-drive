@@ -4,6 +4,7 @@ import { car, setVehicle, getVehicle } from './state/store.js';
 import { getVehicleId } from './config/vehicles/index.js';
 import { setupCanvas } from './ui/resize.js';
 import { buildSceneTabs } from './ui/scene-tabs.js';
+import { buildVehicleSelect, setupVehicleSelect } from './ui/vehicle-select.js';
 import { setupKeyboard } from './input/keyboard.js';
 import { setupMouse } from './input/mouse.js';
 import { loadSceneById } from './core/scene-runtime.js';
@@ -16,6 +17,8 @@ const canvas = document.getElementById('c');
 setupCanvas(canvas);
 
 buildSceneTabs();
+buildVehicleSelect();
+setupVehicleSelect();
 setupKeyboard();
 setupMouse(canvas);
 

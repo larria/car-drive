@@ -105,6 +105,7 @@ car-drive/
     └── ui/
         ├── hud.js          # updateHUD（顶部数值 + 底部徽章）
         ├── scene-tabs.js   # 选项卡动态生成 + 高亮
+        ├── vehicle-select.js # 车辆切换下拉框
         ├── resize.js       # Canvas 尺寸 + DPR + ctx 绑定
         ├── overlay.js      # 失败/通过遮罩 + 障碍物提示 DOM 控制
         └── timer-bars.js   # 计时器进度条 UI
@@ -779,6 +780,10 @@ W/S/A/D 通过 `input.keys` 状态数组持续读取，每帧 `update()` 处理�
 ### 场景选项卡（`ui/scene-tabs.js`）
 
 `buildSceneTabs()` 从 `listScenes()` 动态生成 `#scene-tabs` 内的 `.stab` 按钮（带序号 + 名称），点击调 `loadSceneById`；`updateSceneTabsActive(id)` 高亮当前。
+
+### 车辆切换（`ui/vehicle-select.js`）
+
+`buildVehicleSelect()` 从 `listVehicles()` 动态生成 `#vehicle-select-input` 下拉框（默认当前车辆）；`setupVehicleSelect()` 监听 change：`setVehicle(id)` 切换车辆 + `loadSceneById(scene.currentId)` 重新初始化当前场景（场景 params 依赖车辆参数，需重算几何并重置车辆位置），同步更新 `#brand` 显示名。
 
 ### 遮罩（`ui/overlay.js`）
 

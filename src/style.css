@@ -29,6 +29,19 @@ body{display:flex;flex-direction:column;font-family:'Segoe UI',Helvetica,sans-se
   border-right:1px solid rgba(255,255,255,0.1);
 }
 #brand b{color:#4fc3f7;font-size:13px;}
+#vehicle-select{
+  display:flex;flex-direction:column;justify-content:center;
+  padding:2px 11px 3px;
+  border-right:1px solid rgba(255,255,255,0.08);
+}
+#vehicle-select .hl{margin-bottom:2px;}
+#vehicle-select-input{
+  background:rgba(6,12,24,0.9);color:#4fc3f7;
+  border:1px solid rgba(79,195,247,0.35);border-radius:4px;
+  font-size:11px;font-weight:600;padding:2px 6px;cursor:pointer;
+  outline:none;min-width:96px;
+}
+#vehicle-select-input:focus{border-color:rgba(79,195,247,0.7);}
 .hi{
   display:flex;flex-direction:column;align-items:center;
   padding:2px 11px 4px;
