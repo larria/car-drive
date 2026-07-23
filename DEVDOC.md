@@ -1,4 +1,4 @@
-# 岚图知音 · 驾考练习模拟器 — 开发文档
+# 驾考练习模拟器 — 开发文档
 
 > 工程结构：Vite + 原生 ES Modules（无框架依赖），Canvas 2D 渲染
 > 入口：`index.html` → `src/main.js`
@@ -610,6 +610,26 @@ accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 ```
 
 > `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。Debug 模式下最大车速再乘以 `getMaxSpeedScale()`（1/3），见 [第 20 节](#20-debug-模式)。
+
+### 帧率归一化（`dtf`）
+
+物理参数（`accel`/`steerSpeed`/`maxSpeed`/`friction` 等）以 **60fps 为基准**标定（"每基准帧"的增量/速度）。为使不同刷新率（60Hz/120Hz/144Hz）与不同 DPR 屏幕下车辆每秒位移一致，`update(dt)` 内引入归一化因子：
+
+```
+dtf = min(dt / (1000/60), 2.5)   // 相对 60fps 的帧倍数，上限 2.5 防穿墙
+```
+
+所有"每帧"增量均乘 `dtf`：
+
+- 转向速率：`steerSpeed * dtf`、`steerStatic * dtf`
+- 加速度：`accel * dtf`
+- 位移：`dist = speed * dtf`（直行 `x += sin*dist`，转弯 `dTheta = dist/R`）
+- 摩擦衰减：`speed *= friction ** dtf`（按时间指数衰减，而非每帧固定乘法）
+- 轨迹采样：按时间间隔（约 33ms）记录，而非固定帧数
+
+`dtf` 上限 2.5：切后台等长间隔回来时，单帧位移最多按 2.5 帧计算，避免一帧跨过墙体；计时器 `checkTimers` 仍用原始 `dt` 累计，不受此限影响。
+
+> 此前物理增量未乘 `dtf`，导致高刷新率屏幕车辆行驶速度成倍快于 60Hz 屏幕（如 120Hz 屏快约 2 倍）。归一化后所有设备每秒位移一致。
 
 ---
 

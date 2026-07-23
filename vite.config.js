@@ -23,7 +23,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto', // 自动注入 SW 注册，无需改 main.js
       manifest: {
-        name: '岚图知音 · 驾考练习模拟器',
+        name: '驾考练习模拟器',
         short_name: '驾考练习',
         description: '基于真实车辆参数的 90° 俯视驾考练习模拟器',
         theme_color: '#0c1018',
