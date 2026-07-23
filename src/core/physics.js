@@ -12,6 +12,7 @@ import { axleOffsets, bodyCorners, outerCorners, wheelPositions } from './geomet
 import { checkCollision } from './collision.js';
 import { checkRules } from './rules.js';
 import { checkTimers } from './timers.js';
+import { getMaxSpeedScale } from './debug.js';
 
 export function update(dt = 16) {
   const V = getVehicle();
@@ -39,9 +40,11 @@ export function update(dt = 16) {
   }
 
   // 速度
+  // debug 模式下最大车速缩放为正常的 1/3（慢速调试），由 getMaxSpeedScale 控制
+  const maxSpeed = V.maxSpeed * getMaxSpeedScale();
   if (gearDir !== 0) {
     car.speed += gearDir * V.accel;
-    car.speed = Math.max(-V.maxSpeed, Math.min(V.maxSpeed, car.speed));
+    car.speed = Math.max(-maxSpeed, Math.min(maxSpeed, car.speed));
   } else {
     car.speed *= V.friction;
     if (Math.abs(car.speed) < 0.006) car.speed = 0;

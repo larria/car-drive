@@ -6,6 +6,7 @@
 
 import { scene, getTimerState } from '../state/store.js';
 import { getSceneTimers } from '../core/scene-loader.js';
+import { isDebugMode } from '../core/debug.js';
 
 const container = document.getElementById('timer-bars');
 const _bars = new Map(); // id -> { el, fill, label }
@@ -34,12 +35,16 @@ export function updateTimerBars() {
   const timers = getSceneTimers();
   const ids = new Set(timers.map((t) => t.id));
 
-  // 隐藏不涉及的条目
+  // debug 模式下时间限制不生效，隐藏全部计时条
+  const debug = isDebugMode();
+
+  // 隐藏不涉及的条目（debug 模式下隐藏全部）
   for (const [id, b] of _bars) {
-    if (!ids.has(id)) {
+    if (debug || !ids.has(id)) {
       b.el.classList.remove('show');
     }
   }
+  if (debug) return;
 
   for (const t of timers) {
     const b = ensureBar(t);

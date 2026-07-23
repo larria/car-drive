@@ -49,7 +49,11 @@ export function checkRules() {
   if (scene.parked && forwarding) scene.forwardAfterParked = true;
 
   // 一旦倒车，入库前禁止再前进
-  if (rules.noForwardBeforeParked && scene.reversed && !scene.parked && forwarding) {
+  // 注意：用 parkCount===0（从未成功入库）判断「入库前」，而非 !parked。
+  // parked 在出库过程中（车身部分离开 parkZone）会被 clearParkedCurrent 清掉，
+  // 若用 !parked 会把「入库后驶离」的前进误判为「入库前前进」。
+  // parkCount 只增不清，能稳定区分「从未入库」与「已入库」。
+  if (rules.noForwardBeforeParked && scene.reversed && scene.parkCount === 0 && forwarding) {
     triggerCollision(rules.noForwardBeforeParked.reason || '倒车后入库前不得前进，考试不合格');
     return;
   }

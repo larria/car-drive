@@ -14,6 +14,7 @@ import { car, scene, input } from '../state/store.js';
 import { getSceneTimers, getCollisionElements } from './scene-loader.js';
 import { triggerCollision, carInRect } from './collision.js';
 import { bodyCorners } from './geometry.js';
+import { isDebugMode } from './debug.js';
 
 const STOP_EPS = 0.05; // 速度低于此值视为停车（px/帧）
 
@@ -28,6 +29,9 @@ function carInAnyParkZone() {
 export function checkTimers(dtMs) {
   if (scene.collision.hit || scene.passed.done) return;
   if (!scene.startedW) return; // 未启动不计时
+
+  // debug 模式：时间限制不生效（不累计、不判超时）
+  if (isDebugMode()) return;
 
   const timers = getSceneTimers();
   if (!timers || timers.length === 0) return;

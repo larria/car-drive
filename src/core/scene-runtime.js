@@ -12,6 +12,7 @@ import { car, scene, trail, placement, viewport, clearOutcome } from '../state/s
 import { VIEWPORT } from '../config/physics.js';
 import { hideFailOverlay, hidePassOverlay, hideObstacleHint } from '../ui/overlay.js';
 import { updateSceneTabsActive } from '../ui/scene-tabs.js';
+import { syncHash } from './router.js';
 
 // 按 id 加载场景
 export function loadSceneById(id) {
@@ -55,6 +56,8 @@ export function loadSceneById(id) {
   viewport.vpOffY = 0;
 
   updateSceneTabsActive(cfg.id);
+  // 同步 URL hash，使当前场景可被分享/刷新保留（由 router 忽略自身触发的变更）
+  syncHash(cfg.id);
 
   // 延迟设视口，等 Canvas 尺寸就绪
   setTimeout(() => {

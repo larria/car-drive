@@ -2,7 +2,7 @@
 
 > 工程结构：Vite + 原生 ES Modules（无框架依赖），Canvas 2D 渲染
 > 入口：`index.html` → `src/main.js`
-> 最后更新：2026-07-22
+> 最后更新：2026-07-23
 
 ---
 
@@ -26,6 +26,8 @@
 16. [导入导出](#16-导入导出)
 17. [扩展指南](#17-扩展指南)
 18. [数据验证与调试](#18-数据验证与调试)
+19. [Hash 路由](#19-hash-路由)
+20. [Debug 模式](#20-debug-模式)
 
 ---
 
@@ -53,6 +55,11 @@ npm run dev      # 开发服务器（默认 http://localhost:5173，含 HMR）
 npm run build    # 生产构建到 dist/
 npm run preview  # 预览构建产物
 ```
+
+URL 约定：
+
+- `http://localhost:5173/#/reverse-garage` — Hash 路由直接打开指定场景（见 [第 19 节](#19-hash-路由)）。
+- `http://localhost:5173/?debug=1` — 开启 Debug 模式（见 [第 20 节](#20-debug-模式)）。
 
 ### 目录结构
 
@@ -87,7 +94,9 @@ car-drive/
     │   ├── rules.js        # checkRules()：操作规则检查（noReverse/noStopAfterGo）
     │   ├── timers.js       # checkTimers()：通用计时器（totalCountdown/stopAccum）
     │   ├── scene-loader.js # 解析场景 JSON：展开 generator/转 px/提取碰撞元素/规则/算 bbox/视口
-    │   └── scene-runtime.js# loadSceneById/loadSceneByIndex/resetScene（切换总入口）
+    │   ├── scene-runtime.js# loadSceneById/loadSceneByIndex/resetScene（切换总入口，同步 hash）
+    │   ├── router.js       # Hash 路由：#/scene-id 直接访问场景，hashchange 双向同步
+    │   └── debug.js        # Debug 模式（?debug=1）：时间限制失效 / 前4场景自由放车
     ├── input/
     │   ├── keyboard.js     # W/S/A/D 持续 + Q/Z/1-5/E/R/C 单次
     │   └── mouse.js        # 滚轮缩放/放置车辆/放置-删除障碍物/平移视口
@@ -175,15 +184,18 @@ main.js
   ├─ config/vehicles, config/scenes（配置）
   ├─ ui/resize → state/store（设 viewport.ctx/CW/CH）
   ├─ ui/scene-tabs → config/scenes + core/scene-runtime
-  ├─ input/keyboard, input/mouse → state/store + core/scene-runtime + ui/overlay
-  ├─ core/scene-runtime → core/scene-loader + state/store + ui/overlay + ui/scene-tabs
+  ├─ input/keyboard, input/mouse → state/store + core/scene-runtime + core/debug + ui/overlay
+  ├─ core/scene-runtime → core/scene-loader + state/store + ui/overlay + ui/scene-tabs + core/router
+  ├─ core/router → config/scenes（listScenes），由 main 注入 scene-runtime.loadSceneById
+  ├─ core/debug → config/scenes（BUILTIN_SCENES），供 timers/mouse/timer-bars 查询
   └─ render/loop → core/physics + render/* + ui/hud
                     core/physics → core/geometry + core/collision + state/store
                     core/collision → core/scene-loader(getCollisionElements) + ui/overlay
+                    core/timers → core/scene-loader + core/debug（debug 跳过计时）
                     core/scene-loader → state/store（读 viewport 尺寸）
 ```
 
-无循环依赖。`core/scene-loader` 延迟读取 `viewport.CW/CH`（在 `sceneViewport` 调用时），避免初始化时序问题。
+无循环依赖。`core/router` 不直接 import `scene-runtime`（runtime 切换场景时需反向同步 hash），改由 `main.js` 通过 `initRouter(loadSceneById)` 注入加载函数。`core/scene-loader` 延迟读取 `viewport.CW/CH`（在 `sceneViewport` 调用时），避免初始化时序问题。
 
 ---
 
@@ -370,12 +382,14 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 |---|---|
 | `noReverse` | 不允许中途倒车，`car.speed < 0` 即判失败（"中途倒车，考试不合格"） |
 | `noStopAfterGo` | 按 W 起步后不允许松开/停车，W 松开且速度归零即判失败（"中途停车，考试不合格"） |
-| `noForwardBeforeParked` | 一旦倒车，入库(`parked`)前禁止再前进。`{ reason }` |
+| `noForwardBeforeParked` | 一旦倒车，入库前（`parkCount===0`，从未成功入库）禁止再前进。`{ reason }` |
 | `noReverseAfterForwardParked` | 入库后再次前进（出库），禁止再倒车直至通过。`{ reason }` |
 | `strictDirection` | 严格方向序列：`{ sequence:['forward','reverse',...], reason }`，需先在当前段行驶过才允许切换到下一段，禁止同段内反向穿插（如 forward 段直接倒车）。支持多次进出的复杂流程（倒车入库） |
 
 `noStopAfterGo` 依赖 `scene.startedW` 标志（按 W 置 true）。
-方向阶段规则依赖 `scene.reversed`（倒过车）与 `scene.forwardAfterParked`（入库后前进过）标志，复用 `parkZone` 的 `parked` 信号切换阶段。三条标志均在 `loadScene` 与鼠标放置车辆时重置。
+方向阶段规则依赖 `scene.reversed`（倒过车）与 `scene.forwardAfterParked`（入库后前进过）标志，复用 `parkZone` 的 `parked`/`parkCount` 信号切换阶段。三条标志均在 `loadScene` 与鼠标放置车辆时重置。
+
+> **`noForwardBeforeParked` 用 `parkCount===0` 而非 `!parked` 判断「入库前」**：`parked` 在出库过程中（车身部分离开 parkZone）会被 `clearParkedCurrent` 清成 false，若用 `!parked` 会把「入库后驶离」的前进误判为「入库前前进」。`parkCount` 只增不清，能稳定区分「从未入库」与「已入库」（侧方位出库即依赖此修正）。
 
 **复用提示**：`noForwardBeforeParked` / `noReverseAfterForwardParked` 为通用「方向阶段规则」，可复用于侧方位、倒车入库等需要分阶段方向约束的场景——只要场景配了 `parkZone`（提供 parked 信号）即可直接声明这两条规则。
 
@@ -587,7 +601,7 @@ SCALE=7  maxSteer=38  steerSpeed=2.0  steerStatic=2.8
 accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 ```
 
-> `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。
+> `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。Debug 模式下最大车速再乘以 `getMaxSpeedScale()`（1/3），见 [第 20 节](#20-debug-模式)。
 
 ---
 
@@ -646,7 +660,7 @@ triggerPass(reason)      → setPassed(reason);          car.speed=0; showPassOv
 |---|---|---|
 | `noReverse` | `car.speed < 0`（倒车） | 中途倒车，考试不合格 |
 | `noStopAfterGo` | `scene.startedW` 且 W 松开且 `car.speed < 0.05`（停车） | 中途停车，考试不合格 |
-| `noForwardBeforeParked` | `scene.reversed` 且未 `parked` 且前进 | 倒车后入库前不得前进，考试不合格 |
+| `noForwardBeforeParked` | `scene.reversed` 且 `parkCount===0` 且前进 | 倒车后入库前不得前进，考试不合格 |
 | `noReverseAfterForwardParked` | `scene.forwardAfterParked` 且倒车 | 出库后不得再倒车，考试不合格 |
 | `strictDirection` | 当前方向不匹配 `sequence[dirPhase]` 且非合法切换（需先在当前段行驶过） | 操作顺序错误，考试不合格 |
 
@@ -748,7 +762,7 @@ W/S/A/D 通过 `input.keys` 状态数组持续读取，每帧 `update()` 处理�
 
 | 操作 | 功能 |
 |---|---|
-| 左键单击/拖拽（普通） | 放置车辆 + 拖拽设定朝向（仅 `allowPlaceCar` 场景，默认仅自由练习） |
+| 左键单击/拖拽（普通） | 放置车辆 + 拖拽设定朝向（仅 `allowPlaceCar` 场景，默认仅自由练习；Debug 模式下前 4 场景也放开，见 [第 20 节](#20-debug-模式)） |
 | Alt + 左键拖拽 | 平移视口 |
 | 中键拖拽 | 平移视口 |
 | 滚轮 | 缩放视口（×0.91 / ×1.10，范围 0.2–5.0） |
@@ -995,6 +1009,73 @@ store.scene.forwardAfterParked       // 入库后是否再次前进过
 
 ---
 
+## 19. Hash 路由
+
+`core/router.js` 提供基于 `location.hash` 的场景路由，支持通过 URL 直接访问各场景、前进/后退、分享链接。
+
+### 约定
+
+- hash 形如 `#/scene-id`，例如 `#/reverse-garage`、`#/free`、`#/right-angle`。
+- 首次加载：按当前 hash 加载对应场景；hash 为空时加载默认场景（`listScenes()[0]`，即场景 0）。
+- `hashchange` 监听：用户修改 URL（前进/后退/粘贴链接）→ 加载对应场景。
+- `syncHash(id)`：程序切换场景时同步 hash（选项卡点击、1-5 键、`loadSceneById` 均会触发）。
+
+### 双向同步与防循环
+
+`scene-runtime.loadSceneById` 末尾调用 `syncHash(cfg.id)` 写入 hash；router 监听 `hashchange` 调 `loadSceneById`。为避免 `syncHash → hashchange → loadSceneById → syncHash` 循环，router 用 `_pendingHash` 标记程序主动写入的目标 hash：`hashchange` 若与之相等则视为程序触发、跳过加载。
+
+### 依赖注入
+
+router 不直接 import `scene-runtime`（runtime 需反向调用 `syncHash`，直接引用会循环依赖），改由 `main.js` 通过 `initRouter(loadSceneById)` 注入加载函数。
+
+### API
+
+| 函数 | 说明 |
+|---|---|
+| `initRouter(loadSceneById)` | 初始化：注入加载函数、注册 hashchange 监听、按当前 hash 加载初始场景 |
+| `parseHashSceneId(hash?)` | 从 hash 提取场景 id（`#/reverse-garage` → `reverse-garage`） |
+| `syncHash(sceneId)` | 场景切换时同步 hash（由 `loadSceneById` 调用） |
+| `loadFromHash()` | 加载 hash 指向的场景（无 hash 加载默认） |
+| `defaultSceneId` | 默认场景 id（`listScenes()[0].id`） |
+
+> 新增场景无需改路由代码——路由按场景 id 匹配，`registerScene` / `BUILTIN_SCENES` 注册后即可通过 `#/<id>` 访问。
+
+---
+
+## 20. Debug 模式
+
+`core/debug.js` 提供 URL 查询参数驱动的 Debug 模式，便于调试几何与碰撞，不影响正式考试逻辑。
+
+### 启用
+
+URL 带 `?debug=1`（或 `?debug=true`），如 `http://localhost:5173/?debug=1#/reverse-garage`。debug 标志在页面加载时解析一次，导出纯查询函数供各模块读取。
+
+### 行为
+
+| 项 | 正式模式 | Debug 模式 |
+|---|---|---|
+| 场景时间限制（timers） | 生效，超时判失败 | **不生效**（`checkTimers` 直接 return，不累计不判超时） |
+| 计时进度条 UI | 按 `elapsed/limit` 渲染 | **隐藏全部计时条** |
+| 鼠标自由放置车辆 | 仅 `allowPlaceCar` 场景（自由练习） | 前 4 个非自由场景（直角转弯/曲线行驶/侧方位/倒车入库）也放开 |
+| 最大车速 | 车辆 `maxSpeed`（默认 5.5 px/帧） | **正常的 1/3**（`getMaxSpeedScale` 返回 1/3，便于慢速观察几何） |
+| 碰撞/通过/规则判定 | 不变 | 不变（仍按真实几何判定，便于验证） |
+
+### 放车实现
+
+`input/mouse.js` 的放车条件改为 `getSceneAllowPlaceCar() || isDebugPlaceCarAllowed(scene.currentId)`。`isDebugPlaceCarAllowed` 仅在 debug 模式下对 `BUILTIN_SCENES` 前 4 项（且非 `free`）返回 true。放车交互（左键按下定位 + 拖拽设朝向 + 松手落车）复用自由场景既有逻辑，无额外代码。
+
+### API
+
+| 函数 | 说明 |
+|---|---|
+| `isDebugMode()` | 当前是否处于 debug 模式 |
+| `getMaxSpeedScale()` | 最大车速系数（debug 为 1/3，正式为 1），供 `physics.update` 缩放 `car.speed` 上限 |
+| `isDebugPlaceCarAllowed(sceneId)` | debug 模式下指定场景是否允许鼠标放车（前 4 个非自由场景） |
+
+> Debug 模块仅暴露查询函数、不持有可变状态；正式模式下所有查询返回 false，正式逻辑零侵入。
+
+---
+
 ## 附录：关键函数速查
 
 | 函数 | 文件 | 说明 |
@@ -1017,7 +1098,9 @@ store.scene.forwardAfterParked       // 入库后是否再次前进过
 | `getSceneVars()` | core/scene-loader.js | 动态参数变量表（调试） |
 | `getRenderElements()` | core/scene-loader.js | 绘制元素 |
 | `sceneViewport()` | core/scene-loader.js | 视口自适应 |
-| `loadSceneById/loadSceneByIndex` | core/scene-runtime.js | 切换场景 |
+| `loadSceneById/loadSceneByIndex` | core/scene-runtime.js | 切换场景（loadSceneById 末尾同步 hash） |
+| `initRouter/syncHash/parseHashSceneId` | core/router.js | Hash 路由（见 [第 19 节](#19-hash-路由)） |
+| `isDebugMode/isDebugPlaceCarAllowed/getMaxSpeedScale` | core/debug.js | Debug 模式查询（见 [第 20 节](#20-debug-模式)） |
 | `drawScene()` | render/scene-render.js | 遍历元素绘制 |
 | `drawCar/drawWheel` | render/car-render.js | 绘制车辆/车轮 |
 | `drawTurnAid()` | render/turn-aid.js | 转弯辅助圆 |

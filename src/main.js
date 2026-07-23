@@ -8,6 +8,7 @@ import { buildVehicleSelect, setupVehicleSelect } from './ui/vehicle-select.js';
 import { setupKeyboard } from './input/keyboard.js';
 import { setupMouse } from './input/mouse.js';
 import { loadSceneById } from './core/scene-runtime.js';
+import { initRouter } from './core/router.js';
 import { startLoop } from './render/loop.js';
 
 // 车辆初始：设置默认后轮转向开关（按车辆配置）
@@ -22,8 +23,8 @@ setupVehicleSelect();
 setupKeyboard();
 setupMouse(canvas);
 
-// 加载初始场景（场景0 直角转弯）
-loadSceneById('right-angle');
+// 加载初始场景：由 hash 路由决定（#/scene-id），无 hash 时加载默认场景（场景0）
+initRouter(loadSceneById);
 
 // 与车辆默认保持一致（loadScene 不强制改 rSteerEnabled）
 const V = getVehicle();

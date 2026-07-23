@@ -8,13 +8,13 @@
 //   - 库位开口朝上（朝车道，-y 方向）
 //
 // 流程：车头 heading=90（朝右）从起始线出发
-//   → 前进越过库位 → 右打满倒车入库（heading 270=朝左，头朝开口）
+//   → 前进越过库位 → 右打满倒车入库（heading=0，车尾朝库底、车头朝开口）
 //   → 前进出库向左回起始线附近（heading 变反向）
-//   → 左打满倒车入库（heading 270=朝左）
+//   → 左打满倒车入库（heading=0，车头朝开口）
 //   → 前进向右驶过通过线
 //
 // 方向序列：前进-倒车-前进-倒车-前进（strictDirection）
-// 两次入库朝向均为 heading=270（车头朝左/开口方向），parkCount=2
+// 两次入库朝向均为 heading=0（车头朝开口/车道，-y 方向），parkCount=2
 
 const B1 = 2300; // 库宽（固定）mm，库位 x 方向尺寸
 const B2 = 6700; // 车道宽（固定）mm，库位 y 方向尺寸
@@ -89,8 +89,10 @@ export const scene3 = {
     { type: 'wall', x1: '${-B1/2}', y1: '${GARAGE_BOT}', x2: '${B1/2}', y2: '${GARAGE_BOT}', stroke: 'rgba(255,220,50,0.9)', width: 1, collisionReason: '碰擦库底，考试不合格' },
     // 库前沿参考线（虚线）
     { type: 'line', x1: '${-B1/2}', y1: '${GARAGE_TOP}', x2: '${B1/2}', y2: '${GARAGE_TOP}', stroke: 'rgba(255,220,50,0.5)', width: 1, dashed: true },
-    // 停车区（parkZone）：库位内，要求车头朝左（heading=270），容差 15°
-    { type: 'parkZone', x: '${GARAGE_CX}', y: '${GARAGE_CY}', w: '${B1}', h: '${L}', heading: 270, headingTol: 15 },
+    // 停车区（parkZone）：库位内，要求车头朝开口/车道（heading=0，-y 方向），容差 15°
+    // 倒车入位 → 车尾朝库底、车头朝开口；库位为窄高矩形（宽 B1=2.3m < 车长），
+    // 车身必须纵置（heading=0/180）才能完全驶入，heading=270 会横置而无法入位。
+    { type: 'parkZone', x: '${GARAGE_CX}', y: '${GARAGE_CY}', w: '${B1}', h: '${L}', heading: 0, headingTol: 15 },
     // 起点线（左端）
     { type: 'line', x1: '${START_X}', y1: '${-B2/2}', x2: '${START_X}', y2: '${B2/2}', stroke: 'rgba(50,220,100,0.7)', width: 1 },
     { type: 'label', x: '${START_X - 400}', y: '${B2/4}', text: '◀ 起点', color: 'rgba(50,220,100,0.8)', fontSize: 11 },
