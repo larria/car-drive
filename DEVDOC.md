@@ -28,6 +28,8 @@
 18. [数据验证与调试](#18-数据验证与调试)
 19. [Hash 路由](#19-hash-路由)
 20. [Debug 模式](#20-debug-模式)
+21. [构建产物结构](#21-构建产物结构)
+22. [PWA 与 GitHub Pages 部署](#22-pwa-与-github-pages-部署)
 
 ---
 
@@ -51,24 +53,30 @@
 
 ```bash
 npm install
-npm run dev      # 开发服务器（默认 http://localhost:5173，含 HMR）
-npm run build    # 生产构建到 dist/
+npm run dev      # 开发服务器（默认 http://localhost:5173，含 HMR，base=/）
+npm run build    # 生产构建到 dist/（base=/，供任意静态服务器）
 npm run preview  # 预览构建产物
+npm run deploy   # 以 GitHub Pages 子路径构建（base=/car-drive/）并推送到 github 的 gh-pages 分支
 ```
 
 URL 约定：
 
 - `http://localhost:5173/#/reverse-garage` — Hash 路由直接打开指定场景（见 [第 19 节](#19-hash-路由)）。
 - `http://localhost:5173/?debug=1` — 开启 Debug 模式（见 [第 20 节](#20-debug-模式)）。
+- `https://larria.github.io/car-drive/` — GitHub Pages 在线站点（见 [第 22 节](#22-pwa-与-github-pages-部署)）。
 
 ### 目录结构
 
 ```
 car-drive/
-├── index.html              # 仅 DOM 结构（HUD/Canvas/覆盖层），选项卡由 JS 动态生成
-├── package.json / vite.config.js
+├── index.html              # 仅 DOM 结构（HUD/Canvas/覆盖层），选项卡由 JS 动态生成；head 含 PWA meta
+├── package.json / vite.config.js   # vite.config 配置 VitePWA 插件 + base 路径
+├── public/                 # 静态资源，构建时原样复制
+│   ├── icon.svg            # PWA 图标（any purpose）
+│   ├── maskable.svg        # PWA 图标（maskable purpose）
+│   ├── favicon.svg         # 浏览器标签图标
+│   └── .nojekyll           # 禁用 GitHub Pages 的 Jekyll 处理
 ├── DEVDOC.md               # 本文档
-├── REFACTOR.md             # 重构说明（旧单文件 → 模块化）
 └── src/
     ├── main.js             # 入口：装配 Canvas/输入/选项卡，加载初始场景，启动循环
     ├── style.css           # 全部样式
@@ -1073,6 +1081,84 @@ URL 带 `?debug=1`（或 `?debug=true`），如 `http://localhost:5173/?debug=1#
 | `isDebugPlaceCarAllowed(sceneId)` | debug 模式下指定场景是否允许鼠标放车（前 4 个非自由场景） |
 
 > Debug 模块仅暴露查询函数、不持有可变状态；正式模式下所有查询返回 false，正式逻辑零侵入。
+
+---
+
+## 21. 构建产物结构
+
+构建由 Vite + `vite-plugin-pwa` 产出，标准多文件结构（已弃用早期的 `vite-plugin-singlefile` 单文件方案）：
+
+```
+dist/
+├── index.html                 # 入口，含 manifest/theme-color/apple-touch-icon 引用与 SW 注册脚本
+├── manifest.webmanifest       # PWA 清单（由 VitePWA 生成）
+├── registerSW.js              # SW 注册入口（VitePWA injectRegister:'auto' 注入）
+├── sw.js                      # Service Worker（generateSW 模式，引用 workbox）
+├── workbox-<hash>.js          # Workbox 运行时
+├── icon.svg / maskable.svg / favicon.svg   # 图标（public/ 原样复制）
+├── .nojekyll                  # 禁用 GitHub Pages Jekyll
+└── assets/
+    ├── index-<hash>.js        # 应用主 bundle
+    └── index-<hash>.css       # 样式
+```
+
+`base` 路径由环境变量 `GITHUB_PAGES` 区分（见 `vite.config.js`）：
+
+- 本地 `npm run dev` / `npm run build`：`base = '/'`
+- `npm run deploy`：设置 `GITHUB_PAGES=1`，`base = '/car-drive/'`（GitHub Pages 子路径）
+
+> 产物中所有资源引用（manifest、icons、SW scope、JS/CSS）都基于 `base` 自动推导，切换部署路径只需改 `base`。
+
+---
+
+## 22. PWA 与 GitHub Pages 部署
+
+### PWA 配置（`vite.config.js`）
+
+`VitePWA` 插件关键配置：
+
+| 配置 | 值 | 说明 |
+|---|---|---|
+| `registerType` | `'autoUpdate'` | 新版本自动更新，用户下次访问刷新生效 |
+| `injectRegister` | `'auto'` | 自动注入 SW 注册脚本，无需改 `main.js` |
+| `manifest` | 见配置 | name/short_name/theme_color(#0c1018)/display(standalone)/icons(SVG) |
+| `workbox.globPatterns` | `['**/*.{js,css,html,svg,woff2}']` | 预缓存全部构建产物 |
+| `workbox.navigateFallback` | `'index.html'` | SPA 导航回退 |
+| `devOptions.enabled` | `false` | dev 不启用 SW，避免缓存干扰调试 |
+
+图标采用 SVG 矢量格式（`public/icon.svg` any + `public/maskable.svg` maskable），蓝底方向盘风格，主题色 `#0c1018`。
+
+> `main.js` 无需任何 SW 注册代码——`injectRegister: 'auto'` 由插件在构建时注入 `registerSW.js` 调用到 `index.html`。
+
+### Git 远程（双 push 源）
+
+```
+origin   → https://gitee.com/larria/car-drive.git   (主仓库)
+github   → https://github.com/larria/car-drive.git  (GitHub Pages 部署源)
+```
+
+- 日常代码同步：`git push origin main` + `git push github main`。
+- 站点部署：`npm run deploy`（仅推 `gh-pages` 分支到 `github` remote，与 `main` 解耦）。
+
+### 部署命令（`package.json`）
+
+```json
+"deploy": "GITHUB_PAGES=1 vite build && gh-pages -d dist --remote github --add"
+```
+
+- `GITHUB_PAGES=1`：触发 `base = '/car-drive/'` 构建。
+- `gh-pages -d dist --remote github`：把 `dist/` 推到 `github` remote 的 `gh-pages` 分支。
+- `--add`：追加而非覆盖分支内容（保留历史）。
+- `public/.nojekyll` 随构建产物进入 `dist/`，禁用 GitHub Pages 的 Jekyll 处理。
+
+### 首次部署的一次性配置
+
+1. GitHub 仓库 `Settings → Pages`，Source = `Deploy from a branch`，分支 = `gh-pages`，目录 = `/(root)`。
+2. 推送后等待 1-2 分钟，访问 `https://larria.github.io/car-drive/`。
+
+### 调整部署路径
+
+若改用其他仓库名或 `<user>.github.io` 根站点，只需改 `vite.config.js` 中 `base`（根站点用 `'/'`），并同步 `manifest.scope`/`start_url`（均由 `base` 派生，无需单独改）。`deploy` 脚本的 `GITHUB_PAGES` 环境变量逻辑不变。
 
 ---
 

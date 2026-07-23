@@ -4,7 +4,9 @@
 
 本仓库面向**使用与运维**。若你关心代码结构、模块职责、扩展接口等技术细节，请阅读 [`DEVDOC.md`](./DEVDOC.md)（开发文档）。
 
-- 仓库地址：https://gitee.com/larria/car-drive.git
+- 在线访问（GitHub Pages）：https://larria.github.io/car-drive/
+- Gitee 仓库：https://gitee.com/larria/car-drive.git
+- GitHub 仓库：https://github.com/larria/car-drive.git
 
 ---
 
@@ -16,6 +18,7 @@
 - **完整的考试判定**：越线/撞库侧判失败，入库停车判成功（库位变绿），驶过终点线判合格；含方向序列、倒车/停车、计时等操作规则。
 - **轨迹回放**：自动记录车身覆盖、外廓线、轮胎印迹，便于复盘走线。
 - **数据化配置**：场景与车辆均为 JSON 配置，新增/调整无需改代码。
+- **PWA 离线可用**：可作为可安装应用添加到桌面/主屏，首次加载后离线可用。
 
 ---
 
@@ -36,11 +39,12 @@ npm run dev      # 开发服务器，默认 http://localhost:5173
 ### 构建与部署
 
 ```bash
-npm run build    # 产出 dist/index.html（单文件，JS/CSS 已内联）
-npm run preview  # 本地预览构建产物
+npm run build    # 产出 dist/（标准多文件：index.html + assets/ + sw.js + manifest）
+npm run preview  # 本地预览构建产物（默认 http://localhost:4173）
+npm run deploy   # 构建（GitHub Pages 子路径）并推送到 github 的 gh-pages 分支
 ```
 
-构建产物为**单个 `index.html`**，可直接用 `file://` 打开或托管在任意静态服务器上，无运行时外部依赖。
+构建产物为标准 Vite 多文件结构（HTML + JS/CSS + Service Worker + manifest + 图标），适合托管在任意静态服务器或 GitHub Pages。PWA 能力由 `vite-plugin-pwa` 注入，首次访问后即可离线使用。
 
 ---
 
@@ -103,7 +107,53 @@ npm run preview  # 本地预览构建产物
 
 ---
 
-## 五、车辆与场景管理
+## 五、PWA：安装与离线使用
+
+本项目是渐进式 Web 应用（PWA），支持安装到桌面/主屏并离线使用。
+
+- **安装**：在 Chrome / Edge 等浏览器地址栏右侧点击「安装」图标，或在菜单选「安装应用 / 添加到主屏幕」。安装后以独立窗口启动，无地址栏。
+- **离线**：首次加载完成后，Service Worker 会缓存应用资源，断网仍可访问已加载场景。
+- **更新**：应用更新采用 `autoUpdate` 策略——发布新版本后，用户下次访问会自动获取最新资源并刷新。
+- **图标**：使用 SVG 矢量图标（蓝底方向盘），适配高清屏与 maskable 安卓启动器。
+
+> PWA 功能仅在 HTTPS 或 `localhost` 下生效；GitHub Pages 默认提供 HTTPS。
+
+---
+
+## 六、部署到 GitHub Pages
+
+站点地址：<https://larria.github.io/car-drive/>
+
+### 一键部署
+
+```bash
+npm run deploy
+```
+
+该命令会：以 GitHub Pages 子路径（`base=/car-drive/`）构建 → 用 `gh-pages` 包把 `dist/` 推送到 `github` remote 的 `gh-pages` 分支。
+
+### 首次部署前的一次性配置
+
+1. 仓库已配置两个 push 源：
+   - `origin` → Gitee（`gitee.com/larria/car-drive.git`）
+   - `github` → GitHub（`github.com/larria/car-drive.git`）
+2. 在 GitHub 仓库 `Settings → Pages`，Source 选 `Deploy from a branch`，分支选 `gh-pages`、目录 `/(root)`，保存。
+3. 推送后等待约 1-2 分钟，GitHub Actions 完成构建即可访问。
+
+### 日常同步与发布
+
+- 代码改动提交后推送到两个源：
+  ```bash
+  git push origin main   # Gitee
+  git push github main   # GitHub
+  ```
+- 发布站点：`npm run deploy`（仅更新 gh-pages 分支，与 main 解耦）。
+
+> `base` 路径由环境变量 `GITHUB_PAGES` 区分：本地 `npm run dev` 用 `/`，`deploy` 脚本设置 `GITHUB_PAGES=1` 后用 `/car-drive/`。本地 `npm run build`（不带该变量）产出的是 `/` 基址版本，供其他静态服务器使用。
+
+---
+
+## 七、车辆与场景管理
 
 车辆与场景均以 JSON 配置形式管理，支持内置、动态注册、导入导出。
 
@@ -123,7 +173,7 @@ npm run preview  # 本地预览构建产物
 
 ---
 
-## 六、常见问题
+## 八、常见问题
 
 | 现象 | 说明 |
 |---|---|
@@ -131,15 +181,20 @@ npm run preview  # 本地预览构建产物
 | 切换车辆后几何未变 | 切换车辆会自动重算当前场景几何；若未生效，确认通过页面下拉框或 `setVehicle` 正规路径切换。 |
 | 分享链接打不开指定场景 | 确认 URL hash 形如 `#/场景id`，id 拼写需与上方列表一致。 |
 | Debug 模式未生效 | 确认 URL 带有 `?debug=1`，且为页面加载时即存在（运行中追加需刷新）。 |
+| 安装/离线不可用 | PWA 仅在 HTTPS 或 localhost 生效；确认通过 `https://larria.github.io/car-drive/` 访问，且浏览器未禁用 SW。 |
+| 部署后页面空白/404 | 确认 GitHub Pages 已启用且 Source 指向 `gh-pages` 分支 `/(root)`；`base` 必须为 `/car-drive/`（由 `deploy` 脚本自动设置）。 |
+| 本地 preview 资源 404 | `npm run build`（不带 `GITHUB_PAGES=1`）产出 `/` 基址版本；`preview` 用 `/` 路径访问即可，勿加 `/car-drive/`。 |
 
 ---
 
-## 七、目录与文档
+## 九、目录与文档
 
 | 文件 | 用途 |
 |---|---|
 | `index.html` | 页面 DOM 结构 |
 | `src/` | 全部源码（入口 `src/main.js`） |
+| `public/` | 静态资源（SVG 图标、`.nojekyll`），构建时原样复制 |
+| `vite.config.js` | 构建 + PWA 配置 |
 | `DEVDOC.md` | **开发文档**：架构、模块、坐标系、配置系统、扩展指南 |
 | `README.md` | 本文件：产品说明、使用、管理 |
 
@@ -147,6 +202,6 @@ npm run preview  # 本地预览构建产物
 
 ---
 
-## 八、许可
+## 十、许可
 
 本项目为内部教学/练习用途。如需引用或二次分发，请保留来源与文档链接。
