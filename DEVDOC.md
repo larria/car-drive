@@ -358,6 +358,7 @@ main.js
   ],
   obstacleMode: false,               // true 启用运行时障碍物放置（仅自由场景）
   allowPlaceCar: false,              // true 允许鼠标自由放置车辆（仅自由场景，其余场景默认禁用）
+  speedScale: 1,                     // 可选，最高车速倍率（1=车辆原值）；自由练习设 2 放开为 2 倍最高速
   elements: [ /* 几何元素，字段值支持 ${expr} 占位符 */ ],
 }
 ```
@@ -472,7 +473,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
 | 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | noForwardBeforeParked + noReverseAfterForwardParked；timers：30s 总时 + 2s 中途停车（库内除外） |
 | 3 | `reverse-garage` | 倒车入库 | 动态参数（库长=车长+0.7m，库宽2.3m/车道宽6.7m/控制线6.7m 固定）+ 单库位 `parkZone`（两次入库）+ `finish`（requireParkCount:2, triggerDirection:forward） | strictDirection（前进-倒车-前进-倒车-前进）；timers：30s + 2s 停车 |
-| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` | 无 |
+| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` + `speedScale: 2`（最高速 2 倍） | 无 |
 
 ### generator（生成器）
 
@@ -532,6 +533,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | `getSceneRules()` | `{noReverse?, noStopAfterGo?}` | 当前场景操作规则，供 `checkRules` |
 | `getSceneTimers()` | `[{id,type,limit,...}]` | 当前场景计时器配置，供 `checkTimers` |
 | `getSceneAllowPlaceCar()` | `boolean` | 当前场景是否允许鼠标放置车辆 |
+| `getSceneSpeedScale()` | `number` | 当前场景最高车速倍率（1=车辆原值），供 `physics` 缩放 maxSpeed |
 | `getSceneVars()` | `{RW?, ...}` | 当前场景动态参数变量表（调试） |
 | `getBBoxPx()` | `{minX,maxX,minY,maxY}` | 包围盒 px |
 | `sceneViewport(cfg)` | `{vs, vpOffX, vpOffY}` | 自适应视口参数 |
@@ -609,7 +611,7 @@ SCALE=7  maxSteer=38  steerSpeed=2.0  steerStatic=2.8
 accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 ```
 
-> `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。Debug 模式下最大车速再乘以 `getMaxSpeedScale()`（1/3），见 [第 20 节](#20-debug-模式)。
+> `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。最大车速 `maxSpeed` 实际生效值 = 车辆 `maxSpeed` × `getMaxSpeedScale()`（Debug 1/3，见 [第 20 节](#20-debug-模式)）× `getSceneSpeedScale()`（场景倍率，自由练习为 2）。
 
 ### 帧率归一化（`dtf`）
 
@@ -1202,6 +1204,7 @@ github   → https://github.com/larria/car-drive.git  (GitHub Pages 部署源)
 | `getSceneTimers()` | core/scene-loader.js | 计时器配置 |
 | `updateTimerBars()` | ui/timer-bars.js | 计时器进度条 UI |
 | `getSceneVars()` | core/scene-loader.js | 动态参数变量表（调试） |
+| `getSceneSpeedScale()` | core/scene-loader.js | 场景最高车速倍率（供 physics） |
 | `getRenderElements()` | core/scene-loader.js | 绘制元素 |
 | `sceneViewport()` | core/scene-loader.js | 视口自适应 |
 | `loadSceneById/loadSceneByIndex` | core/scene-runtime.js | 切换场景（loadSceneById 末尾同步 hash） |

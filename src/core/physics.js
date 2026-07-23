@@ -13,6 +13,7 @@ import { checkCollision } from './collision.js';
 import { checkRules } from './rules.js';
 import { checkTimers } from './timers.js';
 import { getMaxSpeedScale } from './debug.js';
+import { getSceneSpeedScale } from './scene-loader.js';
 
 export function update(dt = 16) {
   const V = getVehicle();
@@ -46,8 +47,8 @@ export function update(dt = 16) {
   }
 
   // 速度
-  // debug 模式下最大车速缩放为正常的 1/3（慢速调试），由 getMaxSpeedScale 控制
-  const maxSpeed = V.maxSpeed * getMaxSpeedScale();
+  // 最大车速 = 车辆 maxSpeed × debug 缩放（1/3）× 场景速度倍率（自由练习等可放大）
+  const maxSpeed = V.maxSpeed * getMaxSpeedScale() * getSceneSpeedScale();
   if (gearDir !== 0) {
     car.speed += gearDir * V.accel * dtf;
     car.speed = Math.max(-maxSpeed, Math.min(maxSpeed, car.speed));

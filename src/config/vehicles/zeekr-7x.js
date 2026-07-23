@@ -29,9 +29,9 @@ export const zeekr7x = {
     maxSteer: 36,
     steerSpeed: 2.0,
     steerStatic: 2.8,
-    accel: 0.2,
+    accel: 0.4,
     friction: 0.8,
-    maxSpeed: 5.5,
+    maxSpeed: 11,
   },
   rearSteer: {
     supported: false,   // 极氪7X 全系不支持后轮转向

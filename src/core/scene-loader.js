@@ -216,6 +216,7 @@ let _rules = {}; // 场景操作规则（noReverse / noStopAfterGo 等）
 let _vars = {}; // 当前场景动态参数变量表（调试用）
 let _timers = []; // 场景计时器配置
 let _allowPlaceCar = false; // 是否允许鼠标放置车辆（自由场景等）
+let _speedScale = 1; // 最高车速倍率（自由练习等场景可放大，1 = 车辆原值）
 
 function mm2px(sceneConfig, v) {
   return v / (sceneConfig.scale || 7);
@@ -227,6 +228,7 @@ export function loadSceneData(sceneConfig) {
   _rules = sceneConfig.rules || {};
   _timers = Array.isArray(sceneConfig.timers) ? sceneConfig.timers : [];
   _allowPlaceCar = sceneConfig.allowPlaceCar === true;
+  _speedScale = Number.isFinite(sceneConfig.speedScale) ? sceneConfig.speedScale : 1;
 
   // 动态参数：基于当前车辆参数计算变量表
   _vars = typeof sceneConfig.params === 'function' ? sceneConfig.params(getVehicle()) || {} : {};
@@ -371,6 +373,11 @@ export function getSceneTimers() {
 // 当前场景是否允许鼠标放置车辆
 export function getSceneAllowPlaceCar() {
   return _allowPlaceCar;
+}
+
+// 当前场景最高车速倍率（1 = 车辆原值；自由练习等场景可放大）
+export function getSceneSpeedScale() {
+  return _speedScale;
 }
 
 // 当前场景 bbox（px）

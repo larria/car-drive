@@ -29,9 +29,9 @@ export const vozhiyin2025 = {
     maxSteer: 38,
     steerSpeed: 2.0,
     steerStatic: 2.8,
-    accel: 0.2,
+    accel: 0.4,
     friction: 0.8,
-    maxSpeed: 5.5,
+    maxSpeed: 11,
   },
   rearSteer: {
     supported: true, // 该车型支持后轮转向
