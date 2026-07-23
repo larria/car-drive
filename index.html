@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0c1018">
+<title>岚图知音 · 驾考练习模拟器</title>
+<link rel="icon" type="image/svg+xml" href="/car-drive/favicon.svg">
+<link rel="apple-touch-icon" href="/car-drive/icon.svg">
+  <script type="module" crossorigin src="/car-drive/assets/index-CqHndKAg.js"></script>
+  <link rel="stylesheet" crossorigin href="/car-drive/assets/index-CTqvGv7f.css">
+<link rel="manifest" href="/car-drive/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/car-drive/registerSW.js"></script></head>
+<body>
+
+<div id="hud">
+  <div id="hud-top">
+    <div id="brand"><b>岚图知音</b><span style="color:#556;font-size:11px">驾考练习模拟器</span></div>
+    <div id="vehicle-select"><span class="hl">车辆</span><select id="vehicle-select-input"></select></div>
+    <div class="hi"><span class="hl">车头朝向</span><span class="hv" id="hv-hdg">0.0°</span></div>
+    <div class="hi"><span class="hl">前轮转角</span><span class="hv" id="hv-str">0.0°</span></div>
+    <div class="hi"><span class="hl">速度</span><span class="hv" id="hv-spd">0.0<small style="font-size:9px;color:#4a7090"> km/h</small></span></div>
+    <div class="hi"><span class="hl">挡位</span><span class="hv gear" id="hv-gear">N</span></div>
+    <div class="hi"><span class="hl">后轴转弯R</span><span class="hv" id="hv-rad">—</span></div>
+    <div class="hi"><span class="hl">内切半径</span><span class="hv red" id="hv-rin">—</span></div>
+    <div class="hi"><span class="hl">前外角R</span><span class="hv grn" id="hv-rout">—</span></div>
+    <div class="hi"><span class="hl">后轮转角</span><span class="hv ylw" id="hv-rsteer">0.0°</span></div>
+    <div class="hi"><span class="hl">前保杠-内切</span><span class="hv" id="hv-fbump">—</span></div>
+  </div>
+  <div id="hud-bot">
+    <span>W/S</span> 前进/后退 &nbsp;·&nbsp;
+    <span>A/D</span> 转向 &nbsp;·&nbsp;
+    <span>单按A/D(停车)</span> 调前轮 &nbsp;·&nbsp;
+    <span>Q</span> 锁前轮 &nbsp;·&nbsp;
+    <span>Z</span> 后轮转向 &nbsp;·&nbsp;
+    <span>1-5</span> 切换场景 &nbsp;·&nbsp;
+    <span>R</span> 重置 &nbsp;·&nbsp;
+    <span>C</span> 清轨迹 &nbsp;·&nbsp;
+    <span>E</span> 障碍物模式(场景5) &nbsp;·&nbsp;
+    <span>左键</span> 放置车辆/障碍物 &nbsp;·&nbsp;
+    <span>滚轮</span> 缩放 &nbsp;·&nbsp;
+    <span>Alt+拖拽/中键</span> 平移
+  </div>
+  <div id="scene-tabs"><!-- 由 JS 动态生成 --></div>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="fail-overlay">
+  <div id="fail-msg">
+    <div class="fail-title">❌ 考试不合格</div>
+    <div class="fail-reason" id="fail-reason-text"></div>
+    <div class="fail-hint">按 R 键重置本场景</div>
+  </div>
+</div>
+
+<div id="pass-overlay">
+  <div id="pass-msg">
+    <div class="pass-title">✅ 考试合格</div>
+    <div class="pass-reason" id="pass-reason-text"></div>
+    <div class="pass-hint">按 R 键重置本场景</div>
+  </div>
+</div>
+
+<div id="obstacle-hint" style="display:none">
+  障碍物放置模式 · 左键放置 · 右键删除 · E 退出
+</div>
+
+<div id="overlay">
+  <div class="badge" id="b-lock">前轮 · 自由</div>
+  <div class="badge" id="b-rlock">后轮转向 · 关闭</div>
+</div>
+
+<div id="timer-bars"></div>
+
+</body>
+</html>

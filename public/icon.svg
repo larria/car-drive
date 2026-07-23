@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="驾考练习">
+  <!-- 背景：岚图蓝深底 -->
+  <rect width="512" height="512" rx="96" fill="#0c1018"/>
+  <rect x="32" y="32" width="448" height="448" rx="72" fill="none" stroke="#4fc3f7" stroke-width="6" opacity="0.5"/>
+  <!-- 方向盘外圈 -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#4fc3f7" stroke-width="22"/>
+  <!-- 三辐条 -->
+  <line x1="256" y1="256" x2="256" y2="118" stroke="#4fc3f7" stroke-width="20" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="176" y2="394" stroke="#4fc3f7" stroke-width="20" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="336" y2="394" stroke="#4fc3f7" stroke-width="20" stroke-linecap="round"/>
+  <!-- 中心轮毂 -->
+  <circle cx="256" cy="256" r="40" fill="#4fc3f7"/>
+  <circle cx="256" cy="256" r="16" fill="#0c1018"/>
+</svg>

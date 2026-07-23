@@ -1,0 +1,164 @@
+// 集中状态 store
+//
+// 约定（重要）：
+// - 所有模块通过 import 拿到这些对象的引用，只能 mutate 其属性，不能整体重新赋值
+//   （例如 collisionState = {...} 会断开引用，必须用 collision.hit=false 这种属性赋值）。
+// - 车辆参数不存这里，统一通过 getVehicle() 读取，setVehicle() 切换。
+
+import { getCurrentVehicle, loadVehicleConfig } from '../config/vehicles/index.js';
+import { TRAIL_MAX, VIEWPORT } from '../config/physics.js';
+
+// 车辆运行状态
+export const car = {
+  x: 0,
+  y: 0,
+  heading: 0,
+  steer: 0,
+  speed: 0,
+  locked: false,
+  rSteer: 0,
+  rSteerEnabled: false,
+  rLocked: false,
+};
+
+// 视口
+export const viewport = {
+  vscale: VIEWPORT.initScale,
+  vpOffX: 0,
+  vpOffY: 0,
+  CW: window.innerWidth,
+  CH: window.innerHeight,
+  DPR: window.devicePixelRatio || 1,
+  HUD_H: 0,
+  ctx: null, // Canvas 2D 上下文（resize 时设置）
+};
+
+// 场景运行时状态
+export const scene = {
+  currentId: null, // 当前场景 id（字符串）
+  currentIndex: 0, // 当前场景在列表中的序号（兼容 1-5 键）
+  collision: { hit: false, reason: '' },
+  passed: { done: false, reason: '' }, // 通过判定（终点线触发）
+  parked: false, // 当前是否在停车区内（用于计时器库内除外、方向阶段判定）
+  parkCount: 0, // 累计完成入库次数（只增，供 finish requireParkCount 联动判定）
+  obstacles: [], // 场景4运行时放置的障碍物 [{type:'circle'|'rect', x,y, r|w,h}]
+  obstacleMode: false,
+  placingObstacle: null, // 正在拖拽放置的障碍物
+  startedW: false, // 是否已按 W 起步（用于 noStopAfterGo 规则）
+  reversed: false, // 是否已倒过车（用于方向阶段规则）
+  forwardAfterParked: false, // 入库后是否再次前进过（用于方向阶段规则）
+  dirPhase: 0, // 当前方向序列阶段索引（用于 strictDirection 规则）
+  dirPhaseStarted: false, // 当前阶段是否已开始行驶（用于 strictDirection 切换判定）
+  timers: {}, // 计时器运行时状态 { [id]: { elapsed, active } }，由 core/timers 维护
+};
+
+// 车辆放置交互状态
+export const placement = {
+  placing: false,
+  placeWX: 0,
+  placeWY: 0,
+  placeHeading: 0,
+};
+
+// 视口拖拽
+export const drag = {
+  active: false,
+  startSX: 0,
+  startSY: 0,
+  originOffX: 0,
+  originOffY: 0,
+};
+
+// 轨迹
+export const trail = {
+  frames: [],
+  tick: 0,
+  MAX: TRAIL_MAX,
+};
+
+// 输入
+export const input = {
+  keys: {}, // 按键状态（持续读取）
+  mouseWorldX: 0,
+  mouseWorldY: 0,
+};
+
+// ── 车辆访问 ──
+export function getVehicle() {
+  return getCurrentVehicle();
+}
+
+// 切换车辆：刷新缓存并重置与车辆相关的运行状态
+export function setVehicle(id) {
+  loadVehicleConfig(id);
+  const v = getCurrentVehicle();
+  car.steer = 0;
+  car.speed = 0;
+  car.rSteer = 0;
+  car.rSteerEnabled = v.rSteerSupported && v.rSteerDefaultEnabled;
+  car.rLocked = false;
+}
+
+// ── 碰撞状态（属性赋值，避免断引用）──
+export function setCollision(hit, reason = '') {
+  scene.collision.hit = hit;
+  scene.collision.reason = reason;
+}
+
+export function clearCollision() {
+  scene.collision.hit = false;
+  scene.collision.reason = '';
+}
+
+// 通过判定（终点线触发）
+export function setPassed(reason = '') {
+  scene.passed.done = true;
+  scene.passed.reason = reason;
+}
+
+export function clearPassed() {
+  scene.passed.done = false;
+  scene.passed.reason = '';
+}
+
+// 停车区停车标记
+// setParked: 进入停车区满足条件时调用（parked 置 true，parkCount 累计）
+// clearParkedCurrent: 离开停车区时调用（仅清当前 parked，保留 parkCount）
+export function setParked() {
+  if (!scene.parked) {
+    scene.parked = true;
+    scene.parkCount += 1;
+  }
+}
+export function clearParkedCurrent() {
+  scene.parked = false;
+}
+export function clearParked() {
+  scene.parked = false;
+  scene.parkCount = 0;
+}
+
+// 计时器状态
+export function resetTimers() {
+  scene.timers = {};
+}
+export function getTimerState(id) {
+  return scene.timers[id] || null;
+}
+
+// 方向阶段标志
+export function resetDirectionFlags() {
+  scene.reversed = false;
+  scene.forwardAfterParked = false;
+  scene.dirPhase = 0;
+  scene.dirPhaseStarted = false;
+}
+
+// 场景重置时一并清空碰撞与通过状态
+export function clearOutcome() {
+  clearCollision();
+  clearPassed();
+  clearParked();
+  resetDirectionFlags();
+  resetTimers();
+}
