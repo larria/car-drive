@@ -7,10 +7,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "GITHUB_PAGES=1 vite build && gh-pages -d dist --remote github --add"
   },
   "devDependencies": {
+    "gh-pages": "^6.1.1",
     "vite": "^5.4.0",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-pwa": "^0.20.5"
   }
 }
