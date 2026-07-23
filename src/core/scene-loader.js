@@ -217,6 +217,7 @@ let _vars = {}; // 当前场景动态参数变量表（调试用）
 let _timers = []; // 场景计时器配置
 let _allowPlaceCar = false; // 是否允许鼠标放置车辆（自由场景等）
 let _speedScale = 1; // 最高车速倍率（自由练习等场景可放大，1 = 车辆原值）
+let _accelScale = 1; // 加速度倍率（自由练习等场景可放大，1 = 车辆原值）
 
 function mm2px(sceneConfig, v) {
   return v / (sceneConfig.scale || 7);
@@ -229,6 +230,7 @@ export function loadSceneData(sceneConfig) {
   _timers = Array.isArray(sceneConfig.timers) ? sceneConfig.timers : [];
   _allowPlaceCar = sceneConfig.allowPlaceCar === true;
   _speedScale = Number.isFinite(sceneConfig.speedScale) ? sceneConfig.speedScale : 1;
+  _accelScale = Number.isFinite(sceneConfig.accelScale) ? sceneConfig.accelScale : 1;
 
   // 动态参数：基于当前车辆参数计算变量表
   _vars = typeof sceneConfig.params === 'function' ? sceneConfig.params(getVehicle()) || {} : {};
@@ -378,6 +380,11 @@ export function getSceneAllowPlaceCar() {
 // 当前场景最高车速倍率（1 = 车辆原值；自由练习等场景可放大）
 export function getSceneSpeedScale() {
   return _speedScale;
+}
+
+// 当前场景加速度倍率（1 = 车辆原值；自由练习等场景可放大）
+export function getSceneAccelScale() {
+  return _accelScale;
 }
 
 // 当前场景 bbox（px）

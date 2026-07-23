@@ -12,7 +12,7 @@ export function updateHUD() {
   $('hv-hdg').textContent = hdg.toFixed(1) + '°';
   $('hv-str').textContent = car.steer.toFixed(1) + '°';
 
-  const kph = Math.abs(car.speed) * 7 / 1000 * 60 * 60; // px/frame → km/h 估算
+  const kph = Math.abs(car.speed) * 7 / 1000 * 60 * 3.6; // px/基准帧 → m/s(×60) → km/h(×3.6)
   $('hv-spd').innerHTML = kph.toFixed(1) + '<small style="font-size:9px;color:#4a7090"> km/h</small>';
 
   const gear = car.speed > 0.05 ? 'D' : car.speed < -0.05 ? 'R' : 'N';

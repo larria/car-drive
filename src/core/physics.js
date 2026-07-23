@@ -13,7 +13,7 @@ import { checkCollision } from './collision.js';
 import { checkRules } from './rules.js';
 import { checkTimers } from './timers.js';
 import { getMaxSpeedScale } from './debug.js';
-import { getSceneSpeedScale } from './scene-loader.js';
+import { getSceneSpeedScale, getSceneAccelScale } from './scene-loader.js';
 
 export function update(dt = 16) {
   const V = getVehicle();
@@ -49,8 +49,10 @@ export function update(dt = 16) {
   // 速度
   // 最大车速 = 车辆 maxSpeed × debug 缩放（1/3）× 场景速度倍率（自由练习等可放大）
   const maxSpeed = V.maxSpeed * getMaxSpeedScale() * getSceneSpeedScale();
+  // 加速度按场景倍率缩放（自由练习等可放大）
+  const accel = V.accel * getSceneAccelScale();
   if (gearDir !== 0) {
-    car.speed += gearDir * V.accel * dtf;
+    car.speed += gearDir * accel * dtf;
     car.speed = Math.max(-maxSpeed, Math.min(maxSpeed, car.speed));
   } else {
     // 摩擦衰减按时间归一化：friction^dtf，保证每秒衰减比例与帧率无关
