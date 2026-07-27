@@ -359,7 +359,7 @@ main.js
   obstacleMode: false,               // true 启用运行时障碍物放置（仅自由场景）
   allowPlaceCar: false,              // true 允许鼠标自由放置车辆（仅自由场景，其余场景默认禁用）
   speedScale: 1,                     // 可选，最高车速倍率（1=车辆原值）；自由练习设 11 放开为 11 倍最高速
-  accelScale: 1,                     // 可选，加速度倍率（1=车辆原值）；自由练习设 11 与速度同倍放大
+  accelScale: 1,                     // 可选，加速度倍率（1=车辆原值）；自由练习设 2（仅 2 倍，避免极速下提速过猛）
   elements: [ /* 几何元素，字段值支持 ${expr} 占位符 */ ],
 }
 ```
@@ -474,7 +474,7 @@ viewport: { bbox: { minX: '${-RW}', maxX: '${RW + L2}', ... } },
 | 1 | `s-curve` | 曲线行驶 | `generator: s-curve-arc`（国标两段反向 135° 圆弧相切），出口为 `finish` | noReverse + noStopAfterGo |
 | 2 | `parallel-parking` | 侧方位停车 | 动态参数（库长/库宽/车道宽依赖车型）+ `parkZone` 入库停车 + `finish`（requireParked）+ 右白线分两段避开库位开口 | noForwardBeforeParked + noReverseAfterForwardParked；timers：30s 总时 + 2s 中途停车（库内除外） |
 | 3 | `reverse-garage` | 倒车入库 | 动态参数（库长=车长+0.7m，库宽2.3m/车道宽6.7m/控制线6.7m 固定）+ 单库位 `parkZone`（两次入库）+ `finish`（requireParkCount:2, triggerDirection:forward） | strictDirection（前进-倒车-前进-倒车-前进）；timers：30s + 2s 停车 |
-| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` + `speedScale/accelScale: 11`（最高速与加速度 11 倍） | 无 |
+| 4 | `free` | 自由练习 | 空元素 + `obstacleMode: true` + `allowPlaceCar: true` + `speedScale: 11` / `accelScale: 2`（最高速 11 倍、加速度 2 倍） | 无 |
 
 ### generator（生成器）
 
@@ -615,7 +615,7 @@ accel=0.20  friction=0.80  maxSpeed=5.5  MAX_RSTEER=10
 
 > `maxSteer/steerSpeed/steerStatic/accel/friction/maxSpeed` 可被车辆配置的 `physics` 字段覆盖；后轮最大转角取车辆 `rearSteer.maxAngle`。实际生效值：
 > - 最大车速 `maxSpeed` = 车辆 `maxSpeed` × `getMaxSpeedScale()`（Debug 1/3，见 [第 20 节](#20-debug-模式)）× `getSceneSpeedScale()`（场景倍率，自由练习为 11）
-> - 加速度 `accel` = 车辆 `accel` × `getSceneAccelScale()`（场景倍率，自由练习为 11）
+> - 加速度 `accel` = 车辆 `accel` × `getSceneAccelScale()`（场景倍率，自由练习为 2）
 
 ### 帧率归一化（`dtf`）
 
